@@ -1,8 +1,8 @@
 mod streaming;
+mod strategy;
 
 use std::collections::HashMap;
 
-use futures_util::SinkExt;
 use streaming::entities;
 
 use tinkoff_api::apis::configuration::Configuration;
