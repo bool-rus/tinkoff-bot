@@ -4,17 +4,22 @@ use std::collections::HashMap;
 
 use futures_util::SinkExt;
 use streaming::entities;
-use tokio::io::{AsyncReadExt, stdin};
 
 use tinkoff_api::apis::configuration::Configuration;
 use tinkoff_api::apis::market_api;
 use tokio_compat_02::FutureExt;
 
+fn retrieve_token() -> String {
+    use std::io::{BufRead, stdin};
+    println!("insert token: ");
+    stdin().lock().lines().into_iter().nth(0).unwrap().unwrap()
+}
 #[tokio::main]
 async fn main() {
+    let token = retrieve_token();
     let conf = Configuration {
         base_path: "https://api-invest.tinkoff.ru/openapi/sandbox".to_owned(),
-        bearer_access_token: Some("t.xwGtvjeVXUHM0JwVh9IYDGB5JsISXS51m63-PKNfQT4zz2Xkl4KHW-OvpoYgBHYuN9JfV5DcNB2WJjfpoKv5Kg".to_owned()),
+        bearer_access_token: Some(token.clone()),
         ..Default::default()
     };
     let stocks = market_api::market_stocks_get(&conf).compat().await.unwrap();
@@ -29,21 +34,24 @@ async fn main() {
         }
     );
 
-    let (sender, receiver) = async_channel::bounded(100);
-    let mut sink = streaming::start_client(sender).await;
+    let (to_service, from_client) = async_channel::bounded(100);
+    let (to_client, from_service) = async_channel::bounded(100);
+
+    
+    streaming::start_client(token, from_client, to_client);
 
     let requests: Vec<_> = stocks.keys().map(|k|{
         entities::Request::OrderbookSubscribe {
             figi: k.clone(),
             depth: 4,
-        }.to_string()
+        }
     }).collect();
     tokio::spawn(async move {
         for r in requests {
-            sink.send(tungstenite::Message::Text(r)).await;
+            to_service.send(r).await;
         }
     });
-    while let Ok(msg) = receiver.recv().await {
+    while let Ok(msg) = from_service.recv().await {
         match msg.kind {
             entities::ResponseType::Candle(_) => {}
             entities::ResponseType::Orderbook { figi, depth, bids, asks } => {

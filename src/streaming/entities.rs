@@ -93,7 +93,7 @@ pub enum ResponseType {
         lot: u32,
     },
     Error {
-        request_id: String,
+        request_id: Option<String>,
         error: String,
     }
 }
