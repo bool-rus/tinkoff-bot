@@ -27,7 +27,7 @@ pub fn start_client(token: String, receiver: Receiver<Request>, sender: Sender<R
                                 Err(e) => println!("error on parsing text: {} \n {:?}", text, e),
                             };
                         },
-                        Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {println!("ping")},
+                        Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {},
                         Ok(Message::Binary(_)) => {},
                         Ok(Message::Close(_msg)) => println!("closing need to be processed"),
                         Err(e) => println!("error: {:?}", e),

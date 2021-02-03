@@ -1,8 +1,10 @@
 mod streaming;
 mod strategy;
 
-use std::collections::HashMap;
+use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 
+use entities::Request;
+use strategy::{Market, Orderbook, Strategy, static_amount::StaticAmount, Decision, Order};
 use streaming::entities;
 
 use tinkoff_api::apis::configuration::Configuration;
@@ -15,7 +17,7 @@ fn retrieve_token() -> String {
     stdin().lock().lines().into_iter().nth(0).unwrap().unwrap()
 }
 #[tokio::main]
-async fn main() {
+async fn main() { //"BBG000BH2JM1" - NLOK
     let token = retrieve_token();
     let conf = Configuration {
         base_path: "https://api-invest.tinkoff.ru/openapi/sandbox".to_owned(),
@@ -26,44 +28,60 @@ async fn main() {
 
     let instruments = stocks.payload.instruments;
     
-    let stocks = instruments.iter().fold(
-        HashMap::with_capacity(instruments.len()/4), 
-        |mut map, i| {
-            map.insert(i.figi.clone(), i);
-            map
+    let mut market = instruments.iter().fold(
+        Market::default(), 
+        |mut m, i| {
+            let stock = i.into();
+            m.stocks.insert(i.figi.to_owned(), stock);
+            m
         }
     );
 
     let (to_service, from_client) = async_channel::bounded(100);
     let (to_client, from_service) = async_channel::bounded(100);
 
-    
     streaming::start_client(token, from_client, to_client);
 
-    let requests: Vec<_> = stocks.keys().map(|k|{
-        entities::Request::OrderbookSubscribe {
-            figi: k.clone(),
-            depth: 4,
-        }
-    }).collect();
-    tokio::spawn(async move {
-        for r in requests {
-            to_service.send(r).await;
-        }
-    });
+    to_service.send(entities::Request::OrderbookSubscribe{
+        figi: "BBG000BH2JM1".to_owned(),
+        depth: 4,
+    }).await.unwrap();
+  
+    market.positions.insert("BBG000BH2JM1".to_owned(), 0);
+    let market = Rc::new(RefCell::new(market));
+    let mut strategy = StaticAmount::new(market.clone(), "BBG000BH2JM1".to_owned()).target(100000.0);
+    let mut balance = 200000.0;
     while let Ok(msg) = from_service.recv().await {
         match msg.kind {
             entities::ResponseType::Candle(_) => {}
             entities::ResponseType::Orderbook { figi, depth, bids, asks } => {
-                if asks.len() > 0 && bids.len() > 0 {
-                    let spread = (asks[0].0 - bids[0].0)/asks[0].0;
-                    if spread > 0.05 {
-                        println!("ticker {}, good spread: {:.0}%", stocks.get(&figi).unwrap().ticker, spread*100.0)
-                    }
-                }
+                let mut market = market.borrow_mut();
+                market.orderbooks.insert(figi, Orderbook {bids,asks});
             }
             entities::ResponseType::Info { figi, trade_status, min_price_increment, lot } => {}
             entities::ResponseType::Error { request_id, error } => {}
+        }
+        let decision = strategy.make_decision();
+        match decision {
+            Decision::Relax => {}
+            Decision::Order(Order{kind, price, quantity, figi}) => {
+                let mut market = market.borrow_mut();
+                let have = market.positions.get_mut(&figi).unwrap();
+                match kind {
+                    strategy::OrderKind::Buy => {
+                        balance -= price * (quantity as f64);
+                        *have += quantity;
+                        println!("BUY {}", quantity)
+                    }
+                    strategy::OrderKind::Sell => {
+                        balance += price * (quantity as f64);
+                        *have -= quantity;
+                        println!("SELL {}", quantity)
+                    }
+                }
+                let expected_balance = balance + price * (*have as f64);
+                println!("portfolio: {} in curr, {} expected full", balance, expected_balance);
+            }
         }
     }
 }
