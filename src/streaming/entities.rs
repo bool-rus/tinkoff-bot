@@ -3,7 +3,7 @@ use std::str::FromStr;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, FixedOffset};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum Interval {
     #[serde(rename="1min")]
     MIN1, 
@@ -32,7 +32,7 @@ pub enum Interval {
     #[serde(rename="month")]
     MOUNTH
 }
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Hash, Eq, PartialEq)]
 #[serde(tag = "event")]
 pub enum Request {
     #[serde(rename="candle:subscribe")]

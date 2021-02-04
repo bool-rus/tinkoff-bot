@@ -1,22 +1,32 @@
 
 pub mod entities;
-use std::{str::FromStr, unimplemented};
+use std::{collections::HashSet, str::FromStr};
+use futures_util::{SinkExt, StreamExt};
 
-use futures_util::{SinkExt, StreamExt, select};
-use tungstenite::Message;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
+use tungstenite::{Message, http};
 use async_channel::{Sender, Receiver};
 use entities::{Request, Response};
 
+async fn connect(uri: &str, token: &str) ->  Result<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Error> {
+
+    let req = http::Request::builder()
+    .uri(uri)
+    .header("Authorization", format!("Bearer {}", token))
+    .body(())
+    .unwrap();
+
+    let (websocket, _response) = tokio_tungstenite::connect_async(req).await?;
+    println!("[streaming] Connected");
+    Ok(websocket)
+}
+
 pub fn start_client(token: String, receiver: Receiver<Request>, sender: Sender<Response>) {
     tokio::spawn ( async move {
-        let req = http::Request::builder()
-            .uri("wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws")
-            .header("Authorization", format!("Bearer {}", token))
-            .body(())
-            .unwrap();
-        
-        let (mut websocket, _response) = tokio_tungstenite::connect_async(req).await.unwrap();
-        println!("Connected");
+        let uri = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws";
+        let mut websocket = connect(uri, &token).await.unwrap();
+        let mut state = HashSet::<Request>::new();
         loop {
             tokio::select! {
                 Some(msg) = websocket.next() => {
@@ -30,11 +40,19 @@ pub fn start_client(token: String, receiver: Receiver<Request>, sender: Sender<R
                         Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {},
                         Ok(Message::Binary(_)) => {},
                         Ok(Message::Close(_msg)) => println!("closing need to be processed"),
-                        Err(e) => println!("error: {:?}", e),
+                        Err(e) => {
+                            println!("error: {:?}\n reconnecting...",e);
+                            //TODO: maybe websocket.send(Message::Close(None)).await;
+                            websocket = connect(uri, &token).await.unwrap();
+                            for r in state.iter() {
+                                websocket.send(r.into()).await.unwrap();
+                            }
+                        },
                     }
                 },
                 Ok(req) = receiver.recv() => {
-                    websocket.send(Message::Text(req.to_string())).await.unwrap();
+                    state.insert(req.clone());
+                    websocket.send((&req).into()).await.unwrap();
                 }
             }
         }
