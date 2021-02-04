@@ -1,10 +1,12 @@
+mod faces;
+mod convert;
 mod streaming;
 mod strategy;
 
-use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-use entities::Request;
-use strategy::{Market, Orderbook, Strategy, static_amount::StaticAmount, Decision, Order};
+use faces::Market;
+use strategy::{Decision, Strategy, static_amount::StaticAmount};
 use streaming::entities;
 
 use tinkoff_api::apis::configuration::Configuration;
@@ -56,7 +58,7 @@ async fn main() { //"BBG000BH2JM1" - NLOK
             entities::ResponseType::Candle(_) => {}
             entities::ResponseType::Orderbook { figi, depth, bids, asks } => {
                 let mut market = market.borrow_mut();
-                market.orderbooks.insert(figi, Orderbook {bids,asks});
+                market.orderbooks.insert(figi, faces::Orderbook {bids,asks});
             }
             entities::ResponseType::Info { figi, trade_status, min_price_increment, lot } => {}
             entities::ResponseType::Error { request_id, error } => {}
@@ -64,16 +66,16 @@ async fn main() { //"BBG000BH2JM1" - NLOK
         let decision = strategy.make_decision();
         match decision {
             Decision::Relax => {}
-            Decision::Order(Order{kind, price, quantity, figi}) => {
+            Decision::Order(faces::Order{kind, price, quantity, figi}) => {
                 let mut market = market.borrow_mut();
                 let have = market.positions.get_mut(&figi).unwrap();
                 match kind {
-                    strategy::OrderKind::Buy => {
+                    faces::OrderKind::Buy => {
                         balance -= price * (quantity as f64);
                         *have += quantity;
                         println!("BUY {}", quantity)
                     }
-                    strategy::OrderKind::Sell => {
+                    faces::OrderKind::Sell => {
                         balance += price * (quantity as f64);
                         *have -= quantity;
                         println!("SELL {}", quantity)
