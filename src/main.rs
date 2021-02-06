@@ -7,7 +7,7 @@ mod strategy;
 use std::{cell::RefCell, rc::Rc};
 
 use faces::Market;
-use strategy::{Decision, Strategy, static_amount::StaticAmount};
+use strategy::{Decision, Strategy, fixed_amount::FixedAmount};
 use streaming::entities;
 
 use tinkoff_api::apis::configuration::Configuration;
@@ -56,19 +56,17 @@ async fn main() { //"BBG000BH2JM1" - NLOK
     }).await.unwrap();
   
     market.positions.insert("BBG000BH2JM1".to_owned(), 0);
-    let market = Rc::new(RefCell::new(market));
-    let mut strategy = StaticAmount::new(market.clone(), "BBG000BH2JM1".to_owned()).target(100000.0);
+    let mut strategy = FixedAmount::new( "BBG000BH2JM1".to_owned()).target(100000.0);
     let mut balance = 200000.0;
 
     loop {
         tokio::select! {
             Ok(msg) = from_streaming.recv() => {
-                update_market_from_streaming(market.clone(), msg);
-                let decision = strategy.make_decision();
+                update_market_from_streaming(&mut market, msg);
+                let decision = strategy.make_decision(&market);
                 match decision {
                     Decision::Relax => {}
                     Decision::Order(faces::Order{kind, price, quantity, figi}) => {
-                        let mut market = market.borrow_mut();
                         let have = market.positions.get_mut(&figi).unwrap();
                         match kind {
                             faces::OrderKind::Buy => {
@@ -88,17 +86,16 @@ async fn main() { //"BBG000BH2JM1" - NLOK
                 }
             }
             Ok(msg) = from_rest.recv() => {
-
+                
             }
         }
     }
 }
 
-fn update_market_from_streaming(market: Rc<RefCell<Market>>, msg: entities::Response) {
+fn update_market_from_streaming(market: &mut Market, msg: entities::Response) {
     match msg.kind {
         entities::ResponseType::Candle(_) => {}
         entities::ResponseType::Orderbook { figi, depth, bids, asks } => {
-            let mut market = market.borrow_mut();
             market.orderbooks.insert(figi, faces::Orderbook {bids,asks});
         }
         entities::ResponseType::Info { figi, trade_status, min_price_increment, lot } => {}

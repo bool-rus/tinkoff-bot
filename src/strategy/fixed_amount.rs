@@ -3,18 +3,16 @@ use std::{cell::RefCell, rc::Rc};
 use super::*;
 use crate::faces::*;
 
-pub struct StaticAmount {
-    market: Rc<RefCell<Market>>,
+pub struct FixedAmount {
     figi: String,
     target: f64,
     buy_threshold: f64,
     sell_treshold: f64,
 }
 
-impl StaticAmount {
-    pub fn new(market: Rc<RefCell<Market>>, figi: String) -> Self {
+impl FixedAmount {
+    pub fn new(figi: String) -> Self {
         Self {
-            market,
             figi,
             target: 1000.0,
             buy_threshold: 0.02,
@@ -31,7 +29,7 @@ impl StaticAmount {
     fn _make_decision(&self, figi: String, bid_price: f64, ask_price: f64, position: u32) -> Decision {
         use OrderKind::*;
         let target = self.target;
-        let over = ((position as f64) * bid_price - target);
+        let over = (position as f64) * bid_price - target;
         if over/target > 0.001 { //TODO: использовать threshold
             let quantity = (over/bid_price).round() as u32;
             return Decision::Order(Order {
@@ -41,7 +39,7 @@ impl StaticAmount {
                 quantity,
             });
         }
-        let under = (target - (position as f64) * ask_price);
+        let under = target - (position as f64) * ask_price;
         if under/target > 0.001 {
             let quantity = (under/bid_price).round() as u32;
             return Decision::Order(Order {
@@ -58,9 +56,8 @@ fn have_order(figi: &str, orders: &Vec<Order>) -> bool {
     orders.iter().find(|&order|order.figi.eq(figi)).is_some()
 }
 
-impl Strategy for StaticAmount {
-    fn make_decision(&mut self) -> Decision {
-        let market = self.market.borrow();
+impl Strategy for FixedAmount {
+    fn make_decision(&mut self, market: &Market) -> Decision {
         if have_order(&self.figi, &market.orders) {
             return Decision::Relax;
         }

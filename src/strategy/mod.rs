@@ -1,5 +1,5 @@
-use crate::faces::Order;
-pub mod static_amount;
+use crate::faces::{Market, Order};
+pub mod fixed_amount;
 
 #[derive(Debug)]
 pub enum Decision {
@@ -8,5 +8,5 @@ pub enum Decision {
 }
 
 pub trait Strategy {
-    fn make_decision(&mut self) -> Decision;
+    fn make_decision(&mut self, market: &Market) -> Decision;
 }
