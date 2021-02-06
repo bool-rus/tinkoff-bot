@@ -22,10 +22,9 @@ async fn connect(uri: &str, token: &str) ->  Result<WebSocketStream<MaybeTlsStre
     Ok(websocket)
 }
 
-pub fn start_client(token: String, receiver: Receiver<Request>, sender: Sender<Response>) {
+pub fn start_client(token: String, uri: String, receiver: Receiver<Request>, sender: Sender<Response>) {
     tokio::spawn ( async move {
-        let uri = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws";
-        let mut websocket = connect(uri, &token).await.unwrap();
+        let mut websocket = connect(&uri, &token).await.unwrap();
         let mut state = HashSet::<Request>::new();
         loop {
             tokio::select! {
@@ -43,7 +42,7 @@ pub fn start_client(token: String, receiver: Receiver<Request>, sender: Sender<R
                         Err(e) => {
                             println!("error: {:?}\n reconnecting...",e);
                             //TODO: maybe websocket.send(Message::Close(None)).await;
-                            websocket = connect(uri, &token).await.unwrap();
+                            websocket = connect(&uri, &token).await.unwrap();
                             for r in state.iter() {
                                 websocket.send(r.into()).await.unwrap();
                             }
