@@ -6,6 +6,8 @@ pub struct Market {
     pub positions: HashMap<String, u32>,
     pub orders: Vec<Order>,
     pub stocks: HashMap<String, Stock>,
+    pub bonds: HashMap<String, Stock>,
+    pub etfs: HashMap<String, Stock>,
     pub orderbooks: HashMap<String, Orderbook>,
 }
 

@@ -29,18 +29,8 @@ async fn main() { //"BBG000BH2JM1" - NLOK
         bearer_access_token: Some(token.clone()),
         ..Default::default()
     };
-    let stocks = market_api::market_stocks_get(&conf).compat().await.unwrap();
-
-    let instruments = stocks.payload.instruments;
     
-    let mut market = instruments.iter().fold(
-        Market::default(), 
-        |mut m, i| {
-            let stock = i.into();
-            m.stocks.insert(i.figi.to_owned(), stock);
-            m
-        }
-    );
+    let mut market = Market::default();
 
     let (to_streaming, receiver) = async_channel::bounded(100);
     let (sender, from_streaming) = async_channel::bounded(100);
@@ -49,6 +39,10 @@ async fn main() { //"BBG000BH2JM1" - NLOK
     let (to_rest, receiver) = async_channel::bounded(100);
     let (sender, from_rest) = async_channel::bounded(100);
     rest::start_client(token, rest_uri, receiver, sender);
+
+    to_rest.send(rest::entities::Request::GetStocks).await.unwrap();
+    to_rest.send(rest::entities::Request::GetETFs).await.unwrap();
+    to_rest.send(rest::entities::Request::GetBonds).await.unwrap();
 
     to_streaming.send(entities::Request::OrderbookSubscribe{
         figi: "BBG000BH2JM1".to_owned(),
@@ -86,7 +80,7 @@ async fn main() { //"BBG000BH2JM1" - NLOK
                 }
             }
             Ok(msg) = from_rest.recv() => {
-                
+                update_market_from_rest(&mut market, msg);
             }
         }
     }
@@ -100,5 +94,27 @@ fn update_market_from_streaming(market: &mut Market, msg: entities::Response) {
         }
         entities::ResponseType::Info { figi, trade_status, min_price_increment, lot } => {}
         entities::ResponseType::Error { request_id, error } => {}
+    }
+}
+
+fn update_market_from_rest(market: &mut Market, msg: rest::entities::Response) {
+    use rest::entities::Response;
+    match msg {
+        Response::Err(_, _) => {}
+        Response::Stocks(stocks) => {
+            stocks.into_iter().for_each(|s|{
+                market.stocks.insert(s.figi.to_owned(), s);
+            });
+        }
+        Response::ETFs(stocks) => {
+            stocks.into_iter().for_each(|s|{
+                market.etfs.insert(s.figi.to_owned(), s);
+            });
+        }
+        Response::Bonds(stocks) => {
+            stocks.into_iter().for_each(|s|{
+                market.bonds.insert(s.figi.to_owned(), s);
+            });
+        }
     }
 }
