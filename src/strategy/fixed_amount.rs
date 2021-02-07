@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use super::*;
 use crate::faces::*;
 
@@ -30,7 +28,7 @@ impl FixedAmount {
         use OrderKind::*;
         let target = self.target;
         let over = (position as f64) * bid_price - target;
-        if over/target > 0.001 { //TODO: использовать threshold
+        if over/target > self.sell_treshold { //TODO: использовать threshold
             let quantity = (over/bid_price).round() as u32;
             return Decision::Order(Order {
                 kind: Sell,
@@ -40,7 +38,7 @@ impl FixedAmount {
             });
         }
         let under = target - (position as f64) * ask_price;
-        if under/target > 0.001 {
+        if under/target > self.buy_threshold {
             let quantity = (under/bid_price).round() as u32;
             return Decision::Order(Order {
                 kind: Buy,
@@ -62,7 +60,8 @@ impl Strategy for FixedAmount {
             return Decision::Relax;
         }
         let vol = *market.positions.get(&self.figi).unwrap();
-        if let Some(orderbook) = market.orderbooks.get(&self.figi) {
+        if let Some(stock) = market.stocks.get(&self.figi) {
+            let orderbook = &stock.orderbook;
             if let (Some(&bid), Some(&ask)) = (orderbook.bids.get(0), orderbook.asks.get(0)) {
                 return self._make_decision(self.figi.clone(), bid.0, ask.0, vol)
             }

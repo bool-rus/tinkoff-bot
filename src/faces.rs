@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
+pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
+pub use crate::streaming::entities::Interval;
 
 #[derive(Default)]
 pub struct Market {
     pub positions: HashMap<String, u32>,
     pub orders: Vec<Order>,
     pub stocks: HashMap<String, Stock>,
-    pub bonds: HashMap<String, Stock>,
-    pub etfs: HashMap<String, Stock>,
-    pub orderbooks: HashMap<String, Orderbook>,
 }
 
 #[derive(Debug)]
@@ -24,14 +23,26 @@ pub enum OrderKind {
     Sell
 }
 
+
 pub struct Stock {
     pub figi: String,
     pub ticker: String,
     pub isin: Option<String>,
+    pub orderbook: Orderbook,
+    pub candles: Vec<Candle>,
 }
 
-
+#[derive(Default)]
 pub struct Orderbook {
     pub bids: Vec<(f64, u32)>,
     pub asks: Vec<(f64, u32)>,
+}
+
+pub struct Candle {
+    pub start: f64,
+    pub end: f64,
+    pub low: f64,
+    pub hight: f64,
+    pub volume: i32,
+    pub time: DateTime,
 }

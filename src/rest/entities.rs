@@ -1,11 +1,12 @@
 use tinkoff_api::apis::Error;
-use crate::faces::Stock;
+use crate::faces::{Candle, DateTime, Interval, Stock};
 
 #[derive(Clone)]
 pub enum Request {
     GetStocks,
     GetETFs,
     GetBonds,
+    GetCandles { figi: String, from: DateTime, to: String, interval: Interval},
 }
 
 pub enum Response {
@@ -13,6 +14,7 @@ pub enum Response {
     Stocks(Vec<Stock>),
     ETFs(Vec<Stock>),
     Bonds(Vec<Stock>),
+    Candles { figi: String, candles: Vec<Candle>},
 }
 
 #[derive(Debug)]

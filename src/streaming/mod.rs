@@ -50,6 +50,15 @@ pub fn start_client(token: String, uri: String, receiver: Receiver<Request>, sen
                     }
                 },
                 Ok(req) = receiver.recv() => {
+                    use Request::*;
+                    match req.clone() {   
+                        CandleSubscribe { .. } | 
+                        InfoSubscribe { .. } |
+                        OrderbookSubscribe{ .. } => { state.insert(req.clone()); }
+                        CandleUnsubscribe { figi, interval } => { state.remove( &CandleSubscribe { figi, interval } ); }
+                        OrderbookUnsubscribe { figi, depth } => { state.remove( &OrderbookSubscribe { figi, depth } ); }
+                        InfoUnsubsribe { figi } => { state.remove( &InfoSubscribe { figi } ); }
+                    }
                     state.insert(req.clone());
                     websocket.send((&req).into()).await.unwrap();
                 }

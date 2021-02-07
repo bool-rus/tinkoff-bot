@@ -1,6 +1,4 @@
 pub mod entities;
-use futures_util::StreamExt;
-use tinkoff_api::apis::Error;
 
 use async_channel::{Receiver, Sender};
 use entities::*;
@@ -28,5 +26,12 @@ async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> 
         Request::GetStocks => Response::Stocks(market_stocks_get(conf).await?.payload.instruments.iter().map(Into::into).collect()),
         Request::GetETFs => Response::ETFs(market_stocks_get(conf).await?.payload.instruments.iter().map(Into::into).collect()),
         Request::GetBonds => Response::Bonds(market_stocks_get(conf).await?.payload.instruments.iter().map(Into::into).collect()),
+        Request::GetCandles { figi, from, to, interval } => {
+            let response = market_candles_get(&conf, &figi, from.to_string(), to.to_string(), interval.into()).await?;
+            Response::Candles {
+                figi: figi,
+                candles: response.payload.candles.into_iter().map(Into::into).collect(),
+            }
+        }
     })
 }
