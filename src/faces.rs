@@ -23,7 +23,7 @@ pub enum OrderKind {
     Sell
 }
 
-
+#[derive(Debug)]
 pub struct Stock {
     pub figi: String,
     pub ticker: String,
@@ -32,12 +32,12 @@ pub struct Stock {
     pub candles: Vec<Candle>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Orderbook {
     pub bids: Vec<(f64, u32)>,
     pub asks: Vec<(f64, u32)>,
 }
-
+#[derive(Debug)]
 pub struct Candle {
     pub start: f64,
     pub end: f64,

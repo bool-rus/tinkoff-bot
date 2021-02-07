@@ -1,5 +1,6 @@
 use crate::faces::{Market, Order};
 pub mod fixed_amount;
+pub use fixed_amount::FixedAmount;
 
 #[derive(Debug)]
 pub enum Decision {
