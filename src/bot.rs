@@ -1,11 +1,11 @@
-use crate::streaming;
-use crate::streaming::entities;
+use std::time::SystemTime;
+
+
+use crate::model::*;
 use crate::rest;
 use crate::strategy::*;
-use crate::faces::*;
-
-
-
+use crate::streaming;
+use crate::streaming::entities;
 
 pub async fn start_bot() {
     //"BBG000BH2JM1" - NLOK
@@ -15,68 +15,60 @@ pub async fn start_bot() {
 
     let mut market = Market::default();
 
-    let (to_streaming, receiver) = async_channel::bounded(100);
-    let (sender, from_streaming) = async_channel::bounded(100);
-    streaming::start_client(token.clone(), stream_uri, receiver, sender);
+    let (to_streaming, from_streaming) = streaming::Service::start(token.clone(), stream_uri);
 
     let (to_rest, receiver) = async_channel::bounded(100);
     let (sender, from_rest) = async_channel::bounded(100);
     rest::start_client(token, rest_uri, receiver, sender);
 
-    to_rest
-        .send(rest::entities::Request::GetStocks)
-        .await
-        .unwrap();
-    to_rest
-        .send(rest::entities::Request::GetETFs)
-        .await
-        .unwrap();
-    to_rest
-        .send(rest::entities::Request::GetBonds)
-        .await
-        .unwrap();
 
-    to_streaming
-        .send(entities::Request::OrderbookSubscribe {
-            figi: "BBG000BH2JM1".to_owned(),
-            depth: 4,
-        })
-        .await
-        .unwrap();
+    let figi = "BBG000BH2JM1".to_owned();
+    let target = 10000.0;
+    let mut strategy = FixedAmount::new(figi.clone())
+    .target(target)
+    .thresholds(0.001, 0.001)
+    .factor(1.0);
 
-    market.positions.insert("BBG000BH2JM1".to_owned(), 0);
-    let mut strategy = FixedAmount::new("BBG000BH2JM1".to_owned()).target(100000.0);
-    let mut balance = 200000.0;
+    let initial_requests;
+    {
+        use rest::entities::Request::*;
+        initial_requests = vec![GetStocks, GetETFs, GetBonds, GetPositions];
+    }
 
+    for req in initial_requests {
+        to_rest.send(req).await.unwrap();
+        if let Ok(msg) = from_rest.recv().await {
+            update_market_from_rest(&mut market, msg);
+        }
+    }
+
+    let mut timer = tokio::time::interval(std::time::Duration::from_secs(7));
     loop {
         tokio::select! {
             Ok(msg) = from_streaming.recv() => {
                 update_market_from_streaming(&mut market, msg);
-                let decision = strategy.make_decision(&market);
-                match decision {
-                    Decision::Relax => {}
-                    Decision::Order(Order{kind, price, quantity, figi}) => {
-                        let have = market.positions.get_mut(&figi).unwrap();
-                        match kind {
-                            OrderKind::Buy => {
-                                balance -= price * (quantity as f64);
-                                *have += quantity;
-                                println!("BUY {}", quantity)
-                            }
-                            OrderKind::Sell => {
-                                balance += price * (quantity as f64);
-                                *have -= quantity;
-                                println!("SELL {}", quantity)
-                            }
-                        }
-                        let expected_balance = balance + price * (*have as f64);
-                        println!("portfolio: {} in curr, {} expected full", balance, expected_balance);
-                    }
-                }
             }
             Ok(msg) = from_rest.recv() => {
                 update_market_from_rest(&mut market, msg);
             }
+            _ = timer.tick() => {
+                use crate::rest::entities::Request;
+                to_rest.send(Request::GetOrders).await.unwrap();
+                to_rest.send(Request::GetPositions).await.unwrap();
+            }
+        }
+        let decision = strategy.make_decision(&market);
+        match decision {
+            Decision::Relax => {}
+            Decision::Order(order) => {
+                let stock = market.stocks.get_mut(&order.figi).unwrap();
+                println!("order: {:?}, balance: {:.2}%", order, strategy.balance());
+                let key = SystemTime::now();
+                stock.new_orders.insert(key, order.clone());
+                to_rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await.unwrap();
+            }
+            Decision::CallRest(req) => to_rest.send(req).await.unwrap(),
+            Decision::CallStreaming(req) => to_streaming.send(req).await.unwrap(),
         }
     }
 }
@@ -87,45 +79,49 @@ fn retrieve_token() -> String {
     stdin().lock().lines().into_iter().nth(0).unwrap().unwrap()
 }
 
-
 fn update_market_from_streaming(market: &mut Market, msg: entities::Response) {
-    match msg.kind {
-        entities::ResponseType::Candle(_) => {}
-        entities::ResponseType::Orderbook { figi, depth, bids, asks } => {
+    let entities::Response { time, kind } = msg;
+    use entities::ResponseType;
+    match kind {
+        ResponseType::Candle(_) => {}
+        ResponseType::Orderbook {figi,depth: _,bids,asks,} => {
             market.stocks.get_mut(&figi).and_then(|stock| {
-                stock.orderbook = Orderbook{bids, asks};
+                stock.orderbook = Orderbook { time, bids, asks };
                 Some(())
             });
         }
-        entities::ResponseType::Info { figi, trade_status, min_price_increment, lot } => {}
-        entities::ResponseType::Error { request_id, error } => {}
+        ResponseType::Info {..} => {}
+        ResponseType::Error { .. } => {}
     }
 }
 
 fn update_market_from_rest(market: &mut Market, msg: rest::entities::Response) {
-    println!("received from rest: {:?}", msg);
     use rest::entities::Response;
     match msg {
-        Response::Err(_, _) => {}
+        Response::Err(request, e) => {
+            if let crate::rest::entities::Request::LimitOrder(key, order, ..) = request {
+                market.stocks.get_mut(&order.figi).unwrap().new_orders.remove(&key);
+            }
+            println!("ERR from rest!!! {:?}", e);
+        }
         Response::Stocks(stocks) => {
-            stocks.into_iter().for_each(|s|{
-                market.stocks.insert(s.figi.to_owned(), s);
-            });
-        }
-        Response::ETFs(stocks) => {
-            stocks.into_iter().for_each(|s|{
-                market.stocks.insert(s.figi.to_owned(), s);
-            });
-        }
-        Response::Bonds(stocks) => {
-            stocks.into_iter().for_each(|s|{
+            stocks.into_iter().for_each(|s| {
                 market.stocks.insert(s.figi.to_owned(), s);
             });
         }
         Response::Candles { figi, candles } => {
             if let Some(stock) = market.stocks.get_mut(&figi) {
                 stock.candles.extend(candles.into_iter());
+            } else  {
+                println!("stocks for {} not found", figi);
             }
         }
+        rest::entities::Response::Order(key, state) => {
+            let stock = market.stocks.get_mut(&state.order.figi).unwrap();
+            stock.new_orders.remove(&key);
+            stock.inwork_orders.insert(state.order_id.clone(),state);
+        }
+        rest::entities::Response::Orders(orders) => market.update_orders(orders),
+        rest::entities::Response::Positions(positions) => market.update_positons(positions),
     }
 }

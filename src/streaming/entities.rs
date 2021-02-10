@@ -32,7 +32,7 @@ pub enum Interval {
     #[serde(rename="month")]
     MOUNTH
 }
-#[derive(Serialize, Clone, Hash, Eq, PartialEq)]
+#[derive(Serialize, Clone, Hash, Eq, PartialEq, Debug)]
 #[serde(tag = "event")]
 pub enum Request {
     #[serde(rename="candle:subscribe")]
@@ -56,7 +56,7 @@ impl ToString for Request {
 }
 #[derive(Deserialize, Debug)]
 pub struct Candle {
-    o: f64, c: f64, h: f64, l: f64, v: u32, 
+    o: f64, c: f64, h: f64, l: f64, v: i32, 
     #[serde(with = "rfc3339")]
     time: DateTime<FixedOffset>, 
     interval: Interval, figi: String
@@ -82,7 +82,9 @@ pub enum ResponseType {
     Orderbook {
         figi: String,
         depth: u32,
+        #[serde(with="u32as_floating_point")]
         bids: Vec<(f64, u32)>,
+        #[serde(with="u32as_floating_point")]
         asks: Vec<(f64, u32)>,
     },
     #[serde(rename = "instrument_info")]
@@ -110,6 +112,14 @@ impl FromStr for Response {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         serde_json::from_str(s)
+    }
+}
+
+mod u32as_floating_point {
+    use serde::{self, Deserialize, Deserializer};
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<(f64, u32)>, D::Error> where D: Deserializer<'de> {
+        let fp = Vec::<(f64, f64)>::deserialize(deserializer)?;
+        Ok(fp.into_iter().map(|(f,u)|(f, u as u32)).collect())
     }
 }
 

@@ -1,21 +1,9 @@
 use tinkoff_api::models::{CandleResolution, MarketInstrument};
 use tokio_tungstenite::tungstenite::Message;
-use crate::faces::*;
+use crate::model::*;
 
 use crate:: streaming::entities::Request;
 
-
-impl From<&MarketInstrument> for Stock {
-    fn from(i: &MarketInstrument) -> Self {
-        Stock {
-            figi: i.figi.to_owned(),
-            ticker: i.ticker.to_owned(),
-            isin: i.isin.to_owned(),
-            orderbook: Default::default(),
-            candles: Vec::new(),
-        }
-    }
-}
 
 impl Into<Message> for &Request {
     fn into(self) -> Message {
@@ -46,8 +34,8 @@ impl Into<CandleResolution> for Interval {
 impl From<tinkoff_api::models::Candle> for Candle {
     fn from(candle: tinkoff_api::models::Candle) -> Self {
         Self {
-            start: candle.o,
-            end: candle.c,
+            open: candle.o,
+            close: candle.c,
             low: candle.l,
             hight: candle.h,
             volume: candle.v,

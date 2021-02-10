@@ -1,6 +1,6 @@
 use bot::start_bot;
 
-mod faces;
+mod model;
 mod convert;
 mod streaming;
 mod rest;
