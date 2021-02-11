@@ -53,8 +53,8 @@ pub async fn start_bot() {
             }
             _ = timer.tick() => {
                 use crate::rest::entities::Request;
-                to_rest.send(Request::GetOrders).await.unwrap();
                 to_rest.send(Request::GetPositions).await.unwrap();
+                to_rest.send(Request::GetOrders).await.unwrap();
             }
         }
         let decision = strategy.make_decision(&market);
@@ -74,6 +74,7 @@ pub async fn start_bot() {
 }
 
 fn retrieve_token() -> String {
+    return "t.xwGtvjeVXUHM0JwVh9IYDGB5JsISXS51m63-PKNfQT4zz2Xkl4KHW-OvpoYgBHYuN9JfV5DcNB2WJjfpoKv5Kg".to_owned();
     use std::io::{stdin, BufRead};
     println!("insert token: ");
     stdin().lock().lines().into_iter().nth(0).unwrap().unwrap()
