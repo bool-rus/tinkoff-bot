@@ -50,7 +50,7 @@ impl FixedAmount {
             if quantity == 0 {
                 return Decision::Relax;
             }
-            println!("over: {:.2}, sell", over);
+            log::info!("over: {:.2}, sell", over);
             self.balance += (quantity as f64) * bid_price;
             self.corrected_buy /= factor;
             if self.corrected_buy < self.buy_threshold {
@@ -70,7 +70,7 @@ impl FixedAmount {
             if quantity == 0 {
                 return Decision::Relax;
             }
-            println!("under: {:.2}, buy", under);
+            log::info!("under: {:.2}, buy", under);
             self.balance -= (quantity as f64) * ask_price;
             self.corrected_sell /= factor;
             if self.corrected_sell < self.sell_treshold {
@@ -108,7 +108,7 @@ impl Strategy for FixedAmount {
                 return self._make_decision(self.figi.clone(), bid.0, ask.0, vol)
             } else {
                 if !self.subscribed {
-                    println!("need to subscribe");
+                    log::info!("need to subscribe");
                     self.subscribed = true;
                     return Decision::CallStreaming(streaming::entities::Request::OrderbookSubscribe{
                         figi: self.figi.clone(),

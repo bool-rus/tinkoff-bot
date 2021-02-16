@@ -1,14 +1,21 @@
-use bot::start_bot;
+use simplelog::*;
+use tokio_compat_02::FutureExt;
+use trader::{Trader, TraderConf};
 
 mod model;
 mod convert;
 mod streaming;
 mod rest;
 mod strategy;
-mod bot;
+mod telega;
+mod trader;
 
 #[tokio::main]
 async fn main() { 
-    let bot = tokio::spawn(async {start_bot().await});
-    bot.await.unwrap();
+    TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap();
+    log::error!("START");
+    let handle = tokio::spawn(async {
+        telega::start().compat().await.unwrap()
+    });
+    handle.await.unwrap();
 }

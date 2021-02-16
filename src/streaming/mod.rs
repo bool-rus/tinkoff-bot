@@ -9,6 +9,10 @@ use tungstenite::{Message, http};
 use async_channel::{Sender, Receiver};
 use entities::{Request, Response};
 
+use crate::model::ServiceHandle;
+
+pub use entities::{Request as StreamingRequest, Response as StreamingResponse};
+
 async fn connect(uri: &str, token: &str) ->  Result<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Error> {
 
     let req = http::Request::builder()
@@ -18,11 +22,11 @@ async fn connect(uri: &str, token: &str) ->  Result<WebSocketStream<MaybeTlsStre
     .unwrap();
 
     let (websocket, _response) = tokio_tungstenite::connect_async(req).await?;
-    println!("[streaming] Connected");
+    log::info!("websocket connected");
     Ok(websocket)
 }
 
-pub struct Service {
+pub struct Streaming {
     token: String,
     uri: String,
     need_pong: bool,
@@ -32,17 +36,18 @@ pub struct Service {
     websocket: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-impl Service {
-    pub fn start(token: String, uri: String) -> (Sender<Request>, Receiver<Response>) {
+impl Streaming {
+    pub fn start(token: String, uri: String) -> ServiceHandle<Request, Response> {
         let (sender,r) = async_channel::bounded(100);
         let (s, receiver) = async_channel::bounded(100);
         tokio::spawn (async move {
             let websocket = connect(&uri, &token).await.unwrap();
             Self {token, uri, need_pong: false, state: HashSet::new(), sender, receiver, websocket, }.run().await;
         });
-        (s,r)
+        ServiceHandle::new( s,  r)
     }
-    async fn run(&mut self) {
+    async fn run(mut self) {
+        log::info!("Streaming service started");
         let mut timer = tokio::time::interval(std::time::Duration::from_secs(17));
         loop {tokio::select! {
             Some(msg) = self.websocket.next() => self.on_response(msg).await,
@@ -56,15 +61,15 @@ impl Service {
     async fn on_response(&mut self, msg: Result<Message, tungstenite::error::Error>) {
          match msg {
             Ok(Message::Text(text)) => match Response::from_str(&text) {
-                Ok(msg) => self.sender.send(msg).await.unwrap(),
-                Err(e) => println!("error on parsing text: {} \n {:?}", text, e),
+                Ok(msg) => {self.sender.send(msg).await;},
+                Err(e) => log::error!("error on parsing text: {} \n {:?}", text, e),
             },
-            Ok(Message::Ping(data)) => self.websocket.send(Message::Pong(data)).await.unwrap(),
+            Ok(Message::Ping(data)) => {self.websocket.send(Message::Pong(data)).await;},
             Ok(Message::Pong(_)) => self.need_pong = false,
             Ok(Message::Close(_)) => self.reconnect().await,
             Ok(Message::Binary(_)) => {},
             Err(e) => {
-                println!("error read from websocket: {:?}", e);
+                log::warn!("error read from websocket: {:?}, reconnecting...", e);
                 self.reconnect().await;
             }
         }
@@ -83,14 +88,14 @@ impl Service {
     }
     async fn on_timer(&mut self) {
         if self.need_pong {
-            println!("pong not received. need reconnect");
+            log::warn!("pong not received, reconnecting...");
             self.reconnect().await;
             return;
         }
         match self.websocket.send(Message::Ping(vec![])).await {
             Ok(_) => self.need_pong = true,
             Err(e) => {
-                println!("cannot send Ping: {:?}", e);
+                log::warn!("cannot send Ping: {:?}, reconnecting...", e);
                 self.reconnect().await;
             }
         }
@@ -104,7 +109,7 @@ impl Service {
                     self.need_pong = false;
                     break;
                 }
-                Err(e) => println!("cannot reconnect: {:?}", e),
+                Err(e) => log::error!("cannot reconnect: {:?}", e),
             }
             tokio::time::sleep(std::time::Duration::from_secs(61)).await;
         }

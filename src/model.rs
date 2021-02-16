@@ -1,7 +1,8 @@
 use std::{collections::HashMap, time::SystemTime};
 
 pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
-use chrono::{FixedOffset, Local, TimeZone};
+use async_channel::{Receiver, Sender};
+use chrono::TimeZone;
 use serde::Serialize;
 
 pub use crate::streaming::entities::Interval;
@@ -41,6 +42,17 @@ impl Market {
                 stock.position = position;
             }
         }
+    }
+    pub fn portfolio(&self) -> Vec<(String, f64)> {
+        log::info!("all stocks: {}", self.stocks.len());
+        self.stocks.values().filter_map(|stock| {
+            let position = stock.position;
+            if position > 0 {
+                Some((stock.ticker.clone(), position as f64))
+            } else {
+                None
+            }
+        }).collect()
     }
 }
 
@@ -107,3 +119,30 @@ pub struct Candle {
     pub volume: i32,
     pub time: DateTime,
 }
+
+
+pub struct ServiceHandle<Req, Res> {
+    sender: Sender<Req>,
+    receiver: Receiver<Res>,
+}
+
+impl <Req, Res> ServiceHandle<Req, Res> {
+    pub fn new(sender: Sender<Req>, receiver: Receiver<Res>) -> Self {
+        Self {sender, receiver}
+    }
+    pub async fn send(&self, msg: Req) -> Result<(), ChannelStopped> {
+        self.sender.send(msg).await.map_err(|_|ChannelStopped)
+    }
+    pub async fn recv(&self) -> Result<Res, ChannelStopped> {
+        self.receiver.recv().await.map_err(|_|ChannelStopped)
+    }
+    pub fn receiver(&self) -> Receiver<Res> {
+        self.receiver.clone()
+    }
+    pub fn stop(&mut self) {
+        self.sender.close();
+        self.receiver.close();
+    }
+}
+
+pub struct ChannelStopped;

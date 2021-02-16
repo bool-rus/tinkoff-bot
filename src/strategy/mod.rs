@@ -19,6 +19,20 @@ pub trait Strategy {
     fn make_decision(&mut self, market: &Market) -> Decision;
     fn balance(&self) -> f64;
 }
+
+#[derive(Default)]
+pub struct Dummy;
+
+impl Strategy for Dummy {
+    fn make_decision(&mut self, market: &Market) -> Decision {
+        Decision::Relax
+    }
+
+    fn balance(&self) -> f64 {
+        0.0
+    }
+}
+
 /*
 pub struct StrategyProfiler<T: Strategy> {
     strategy: T,

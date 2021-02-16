@@ -54,7 +54,7 @@ impl ToString for Request {
         serde_json::to_string(self).unwrap()
     }
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Candle {
     o: f64, c: f64, h: f64, l: f64, v: i32, 
     #[serde(with = "rfc3339")]
@@ -62,7 +62,7 @@ pub struct Candle {
     interval: Interval, figi: String
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum TradeStatus {
     BreakInTrading,
@@ -74,7 +74,7 @@ pub enum TradeStatus {
     OpeningPeriod,
     TradingAtClosingAuctionPrice,
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "event", content = "payload")]
 #[serde(rename_all = "lowercase")]
 pub enum ResponseType {
@@ -99,7 +99,7 @@ pub enum ResponseType {
         error: String,
     }
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Response {
     #[serde(with = "rfc3339")]
     pub time: DateTime<FixedOffset>,
@@ -152,7 +152,7 @@ pub fn test_response() {
         }
     }"#;
     let v: Response = serde_json::from_str(data).unwrap();
-    println!("response candle: {:?}", v);
+    log::info!("response candle: {:?}", v);
 
     let data = r#"{
         "event": "orderbook",
@@ -172,7 +172,7 @@ pub fn test_response() {
     }"#;
 
     let v: Response = serde_json::from_str(data).unwrap();
-    println!("response orderbook: {:?}", v);
+    log::info!("response orderbook: {:?}", v);
 
     let data = r#"{
         "event": "instrument_info",
@@ -186,7 +186,7 @@ pub fn test_response() {
     }"#;
 
     let v: Response = serde_json::from_str(data).unwrap();
-    println!("response info: {:?}", v);
+    log::info!("response info: {:?}", v);
 
     let data = r#"{
         "event": "error",
@@ -198,6 +198,6 @@ pub fn test_response() {
     }"#;
 
     let v: Response = serde_json::from_str(data).unwrap();
-    println!("response error: {:?}", v);
+    log::info!("response error: {:?}", v);
 
 }

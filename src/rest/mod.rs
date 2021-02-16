@@ -10,7 +10,19 @@ use tinkoff_api::apis::portfolio_api::*;
 use tinkoff_api::models::LimitOrderRequest;
 use tokio_compat_02::FutureExt;
 
-use crate::model::{Order, OrderState};
+use crate::model::{Order, OrderState, ServiceHandle};
+pub use entities::{Request as RestRequest, Response as RestResponse};
+
+pub struct Rest;
+
+impl Rest {
+    pub fn start(token: String, uri: String) -> ServiceHandle<Request, Response>{
+        let (sender, r) = async_channel::bounded(1000);
+        let (s, receiver) = async_channel::bounded(1000);
+        start_client(token, uri, receiver, sender);
+        ServiceHandle::new(s, r)
+    }
+}
 
 pub fn start_client(
     token: String,
@@ -31,6 +43,7 @@ pub fn start_client(
             }
         }
     });
+
 }
 
 async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> {

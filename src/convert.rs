@@ -1,3 +1,4 @@
+use async_channel::{RecvError, SendError};
 use tinkoff_api::models::{CandleResolution, MarketInstrument};
 use tokio_tungstenite::tungstenite::Message;
 use crate::model::*;
@@ -41,5 +42,17 @@ impl From<tinkoff_api::models::Candle> for Candle {
             volume: candle.v,
             time: DateTime::parse_from_rfc3339(&candle.time).unwrap(),
         }
+    }
+}
+
+impl From<RecvError> for ChannelStopped {
+    fn from(_: RecvError) -> Self {
+        Self
+    }
+}
+
+impl<T> From<SendError<T>> for ChannelStopped {
+    fn from(_: SendError<T>) -> Self {
+        Self
     }
 }
