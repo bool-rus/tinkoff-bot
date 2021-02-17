@@ -100,6 +100,12 @@ impl Streaming {
             }
         }
     }
+    async fn resubscribe(&mut self) -> Result<(), tungstenite::error::Error> {
+        for r in &self.state {
+            self.websocket.send(r.into()).await?;
+        }
+        Ok(())
+    }
     async fn reconnect(&mut self) {
         self.websocket.send(Message::Close(None)).await.unwrap_or(());
         loop {
@@ -107,15 +113,14 @@ impl Streaming {
                 Ok(ws) => {
                     self.websocket = ws;
                     self.need_pong = false;
-                    break;
+                    match self.resubscribe().await {
+                        Ok(_) => break,
+                        Err(e) => log::error!("cannoct resubscribe: {:?}", e),
+                    }
                 }
                 Err(e) => log::error!("cannot reconnect: {:?}", e),
             }
             tokio::time::sleep(std::time::Duration::from_secs(61)).await;
-        }
-
-        for r in self.state.iter() {
-            self.websocket.send(r.into()).await;
         }
     }
 }
