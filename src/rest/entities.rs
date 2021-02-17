@@ -1,15 +1,14 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::time::SystemTime;
 
 use tinkoff_api::apis::Error;
-use crate::model::{Candle, DateTime, Interval, Order, OrderKind, OrderState, Position, Stock, StockState};
+use crate::model::{Candle, DateTime, Interval, Order, OrderState, Position, Stock};
 
 #[derive(Clone, Debug)]
 pub enum Request {
-    GetInstruments,
-    GetCandles { figi: String, from: DateTime, to: DateTime, interval: Interval},
+    Instruments,
+    Candles { figi: String, from: DateTime, to: DateTime, interval: Interval},
     LimitOrder(SystemTime, Order),
-    GetOrders,
-    GetPositions,
+    Portfolio,
 }
 
 #[derive(Debug)]
@@ -18,8 +17,7 @@ pub enum Response {
     Stocks(Vec<Stock>),
     Candles { figi: String, candles: Vec<Candle>},
     Order(SystemTime, OrderState),
-    Orders(Vec<OrderState>),
-    Positions(Vec<(String, Position)>),
+    Portfolio { positions: Vec<(String, Position)>, orders: Vec<OrderState> },
 }
 
 #[derive(Debug)]

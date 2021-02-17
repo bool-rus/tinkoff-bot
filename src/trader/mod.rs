@@ -50,7 +50,7 @@ impl Trader {
     async fn run(mut self) -> Result<(), ChannelStopped> {
         log::info!("Trader started");
         let mut timer = tokio::time::interval(std::time::Duration::from_secs(7));
-        self.rest.send(RestRequest::GetInstruments).await?;
+        self.rest.send(RestRequest::Instruments).await?;
         loop {
             tokio::select! {
                 msg = self.streaming.recv() => {
@@ -65,8 +65,7 @@ impl Trader {
                 }
                 _ = timer.tick() => {
                     use crate::rest::entities::Request;
-                    self.rest.send(Request::GetPositions).await?;
-                    self.rest.send(Request::GetOrders).await?;
+                    self.rest.send(Request::Portfolio).await?;
                 }
             }
             self.new_decision().await?;
@@ -87,7 +86,6 @@ impl Trader {
             Decision::Relax => {}
             Decision::Order(order) => {
                 let stock = self.market.state_mut(&order.figi);
-                log::info!("order: {:?}, balance: {:.2}%", order, self.strategy.balance());
                 let key = SystemTime::now();
                 stock.new_orders.insert(key, order.clone());
                 self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
@@ -103,7 +101,7 @@ impl Trader {
         use crate::streaming::entities::ResponseType;
         match kind {
             ResponseType::Candle(_) => {}
-            ResponseType::Orderbook {figi,depth: _,bids,asks,} => {
+            ResponseType::Orderbook {figi, depth: _, bids, asks,} => {
                 self.market.state_mut(&figi).orderbook = Orderbook { time, bids, asks };
             }
             ResponseType::Info {..} => {}
@@ -128,8 +126,7 @@ impl Trader {
                 stock.new_orders.remove(&key);
                 stock.inwork_orders.insert(state.order_id.clone(),state);
             }
-            RestResponse::Orders(orders) => self.market.update_orders(orders),
-            RestResponse::Positions(positions) => self.market.update_positons(positions),
+            RestResponse::Portfolio{positions, orders} => self.market.update_portfolio(positions, orders),
         }
     }
 

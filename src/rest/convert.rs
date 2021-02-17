@@ -1,6 +1,5 @@
 use tinkoff_api::models::*;
-use crate::model::{Position, StockState, Stock};
-use super::entities::Response;
+use crate::model::{OrderState, Stock};
 
 impl From<&MarketInstrument> for Stock {
     fn from(i: &MarketInstrument) -> Self {
@@ -15,29 +14,19 @@ impl From<&MarketInstrument> for Stock {
     }
 }
 
-impl From<OrdersResponse> for Response {
-    fn from(response: OrdersResponse) -> Self {
-        Response::Orders(response.payload.into_iter().map(
-            | Order { order_id, figi, operation, price, requested_lots, executed_lots, ..}| {
-            let order = crate::model::Order {
-                figi,
-                kind: operation.into(),
-                price,
-                quantity: requested_lots as u32,
-            };
-            crate::model::OrderState {
-                order_id,
-                order,
-                executed: executed_lots as u32,
-            }
-        }).collect())
-    }
-}
-
-impl From<PortfolioResponse> for Response {
-    fn from(res: PortfolioResponse) -> Self {
-        Response::Positions(res.payload.positions.into_iter().map(|p|{
-            (p.figi, Position {lots: p.lots, balance: p.balance})
-        }).collect())
+impl From<Order> for OrderState {
+    fn from(o: Order) -> Self {
+        let Order { order_id, figi, operation, price, requested_lots, executed_lots, ..} = o;
+        let order = crate::model::Order {
+            figi,
+            kind: operation.into(),
+            price,
+            quantity: requested_lots as u32,
+        };
+        crate::model::OrderState {
+            order_id,
+            order,
+            executed: executed_lots as u32,
+        }
     }
 }

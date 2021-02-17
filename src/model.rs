@@ -19,7 +19,10 @@ impl Market {
             self.stocks.insert(s.figi.to_owned(), s);
         });
     }
-    pub fn update_orders(&mut self, orders: Vec<OrderState>) {
+    pub fn update_portfolio(&mut self, positions: Vec<(String, Position)>, orders: Vec<OrderState>) {
+        for (figi, position) in positions {
+            self.state_mut(&figi).position = position;
+        }
         for state in self.state.values_mut() {
             state.inwork_orders = HashMap::new();
         }
@@ -41,11 +44,6 @@ impl Market {
                 Some(())
             });
         });
-    }
-    pub fn update_positons(&mut self, positions: Vec<(String, Position)>) {
-        for (figi, position) in positions {
-            self.state_mut(&figi).position = position;
-        }
     }
     pub fn portfolio(&self) -> Vec<(Stock, Position)> {
         log::info!("all stocks: {}", self.state.len());

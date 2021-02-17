@@ -10,7 +10,7 @@ use tinkoff_api::apis::portfolio_api::*;
 use tinkoff_api::models::LimitOrderRequest;
 use tokio_compat_02::FutureExt;
 
-use crate::model::{Order, OrderState, ServiceHandle};
+use crate::model::{OrderState, Position, ServiceHandle};
 pub use entities::{Request as RestRequest, Response as RestResponse};
 
 pub struct Rest;
@@ -48,7 +48,7 @@ pub fn start_client(
 
 async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> {
     Ok(match request {
-        Request::GetInstruments => {
+        Request::Instruments => {
             let stocks = market_stocks_get(conf).compat().await?.payload.instruments;
             let etfs = market_etfs_get(conf).compat().await?.payload.instruments;
             let bonds = market_bonds_get(conf).compat().await?.payload.instruments;
@@ -59,7 +59,7 @@ async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> 
                 .chain(currencies.iter());
             Response::Stocks(instruments.map(Into::into).collect())
         },
-        Request::GetCandles {figi,from,to,interval,} => {
+        Request::Candles {figi,from,to, interval,} => {
             let response =
                 market_candles_get_own(&conf, &figi, from.to_rfc3339(), to.to_rfc3339(), "1min")
                     .compat()
@@ -87,8 +87,14 @@ async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> 
                 ).compat().await?.payload;
             Response::Order(key, OrderState {order_id, order, executed: executed_lots as u32})
         }
-        Request::GetOrders => orders_get(&conf, None).compat().await?.into(),
-        Request::GetPositions => portfolio_get(&conf, None).compat().await?.into(),
+        Request::Portfolio => {
+            let orders = orders_get(&conf, None).compat().await?.payload.into_iter().map(Into::into).collect();
+            let positions = portfolio_get(&conf, None).compat().await?
+            .payload.positions.into_iter().map(|p|{
+                (p.figi, Position {lots: p.lots, balance: p.balance})
+            }).collect();
+            Response::Portfolio {positions, orders}
+        },
     })
 }
 
