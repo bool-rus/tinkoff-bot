@@ -170,10 +170,6 @@ impl <Req, Res> ServiceHandle<Req, Res> {
     pub fn receiver(&self) -> Receiver<Res> {
         self.receiver.clone()
     }
-    pub fn stop(&mut self) {
-        self.sender.close();
-        self.receiver.close();
-    }
 }
 
 pub struct ChannelStopped;

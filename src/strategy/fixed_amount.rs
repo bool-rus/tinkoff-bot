@@ -11,7 +11,6 @@ pub struct FixedAmount {
     corrected_buy: f64,
     corrected_sell: f64,
     factor: f64,
-    subscribed: bool,
     first_buy: bool,
 }
 
@@ -26,7 +25,6 @@ impl FixedAmount {
             corrected_buy: 0.01,
             corrected_sell: 0.01,
             factor: 1.0,
-            subscribed: false,
             first_buy: true,
         }
     }
@@ -106,15 +104,6 @@ impl Strategy for FixedAmount {
             let orderbook = &stock.orderbook;
             if let (Some(&bid), Some(&ask)) = (orderbook.bids.get(0), orderbook.asks.get(0)) {
                 return self._make_decision(self.figi.clone(), bid.0, ask.0, vol)
-            } else {
-                if !self.subscribed {
-                    log::info!("need to subscribe");
-                    self.subscribed = true;
-                    return Decision::CallStreaming(streaming::entities::Request::OrderbookSubscribe{
-                        figi: self.figi.clone(),
-                        depth: 1,
-                    });
-                }
             }
         }
         Decision::Relax

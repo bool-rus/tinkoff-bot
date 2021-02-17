@@ -11,8 +11,6 @@ use crate::rest::entities::Request as RestRequest;
 pub enum Decision {
     Relax,
     Order(Order),
-    CallStreaming(StreamingRequest),
-    CallRest(RestRequest),
 }
 
 pub trait Strategy {

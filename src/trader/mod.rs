@@ -57,11 +57,11 @@ impl Trader {
                     self.update_market_from_streaming(msg?);
                 }
                 msg = self.rest.recv() => {
-                    self.update_market_from_rest(msg?);
+                    self.update_market_from_rest(msg?).await?;
                 }
                 msg = self.receiver.recv() => {
                     let msg = msg.map_err(|_|ChannelStopped)?;
-                    self.process_request(msg).await;
+                    self.process_request(msg).await?;
                 }
                 _ = timer.tick() => {
                     use crate::rest::entities::Request;
@@ -72,11 +72,12 @@ impl Trader {
         }
     }
 
-    async fn process_request(&mut self, request: entities::Request) {
+    async fn process_request(&mut self, request: entities::Request) -> Result<(), ChannelStopped> {
         use entities::*;
         match request {
-            Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await.is_ok(),
+            Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,
         };
+        Ok(())
     }
 
 
@@ -90,8 +91,6 @@ impl Trader {
                 stock.new_orders.insert(key, order.clone());
                 self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
             }
-            Decision::CallRest(req) => self.rest.send(req).await?,
-            Decision::CallStreaming(req) => self.streaming.send(req).await?,
         }
         Ok(())
     }
@@ -109,7 +108,7 @@ impl Trader {
         }
     }
 
-    fn update_market_from_rest(&mut self, msg: RestResponse) {
+    async fn update_market_from_rest(&mut self, msg: RestResponse) -> Result<(), ChannelStopped> {
         match msg {
             RestResponse::Err(request, e) => {
                 if let crate::rest::entities::Request::LimitOrder(key, order, ..) = request {
@@ -126,8 +125,16 @@ impl Trader {
                 stock.new_orders.remove(&key);
                 stock.inwork_orders.insert(state.order_id.clone(),state);
             }
-            RestResponse::Portfolio{positions, orders} => self.market.update_portfolio(positions, orders),
+            RestResponse::Portfolio{positions, orders} => {
+                for (figi, _) in &positions {
+                    let figi = figi.clone();
+                    let depth = 10; //TODO: надо бы параметризировать
+                    self.streaming.send(StreamingRequest::OrderbookSubscribe {figi, depth}).await?;
+                }
+                self.market.update_portfolio(positions, orders)
+            }
         }
+        Ok(())
     }
 
 }
