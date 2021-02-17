@@ -1,24 +1,16 @@
 use tinkoff_api::models::*;
-use crate::model::Stock;
+use crate::model::{Position, StockState, Stock};
 use super::entities::Response;
-
-impl From<MarketInstrumentListResponse> for Response {
-    fn from(r: MarketInstrumentListResponse) -> Self {
-        Response::Stocks(r.payload.instruments.iter().map(Into::into).collect())
-    }
-}
 
 impl From<&MarketInstrument> for Stock {
     fn from(i: &MarketInstrument) -> Self {
         Stock {
+            name: i.name.to_owned(),
             figi: i.figi.to_owned(),
             ticker: i.ticker.to_owned(),
             isin: i.isin.to_owned(),
-            position: 0,
-            orderbook: Default::default(),
-            candles: Vec::new(),
-            inwork_orders: Default::default(),
-            new_orders: Default::default(),
+            min_increment: i.min_price_increment.unwrap_or(0.01),
+            lot: i.lot as u32,
         }
     }
 }
@@ -45,7 +37,7 @@ impl From<OrdersResponse> for Response {
 impl From<PortfolioResponse> for Response {
     fn from(res: PortfolioResponse) -> Self {
         Response::Positions(res.payload.positions.into_iter().map(|p|{
-            (p.figi, p.lots as u32)
+            (p.figi, Position {lots: p.lots, balance: p.balance})
         }).collect())
     }
 }

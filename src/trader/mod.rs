@@ -50,9 +50,7 @@ impl Trader {
     async fn run(mut self) -> Result<(), ChannelStopped> {
         log::info!("Trader started");
         let mut timer = tokio::time::interval(std::time::Duration::from_secs(7));
-        self.rest.send(RestRequest::GetETFs).await?;
-        self.rest.send(RestRequest::GetStocks).await?;
-        self.rest.send(RestRequest::GetBonds).await?;
+        self.rest.send(RestRequest::GetInstruments).await?;
         loop {
             tokio::select! {
                 msg = self.streaming.recv() => {
@@ -88,7 +86,7 @@ impl Trader {
         match decision {
             Decision::Relax => {}
             Decision::Order(order) => {
-                let stock = self.market.stocks.get_mut(&order.figi).unwrap();
+                let stock = self.market.state_mut(&order.figi);
                 log::info!("order: {:?}, balance: {:.2}%", order, self.strategy.balance());
                 let key = SystemTime::now();
                 stock.new_orders.insert(key, order.clone());
@@ -106,10 +104,7 @@ impl Trader {
         match kind {
             ResponseType::Candle(_) => {}
             ResponseType::Orderbook {figi,depth: _,bids,asks,} => {
-                self.market.stocks.get_mut(&figi).and_then(|stock| {
-                    stock.orderbook = Orderbook { time, bids, asks };
-                    Some(())
-                });
+                self.market.state_mut(&figi).orderbook = Orderbook { time, bids, asks };
             }
             ResponseType::Info {..} => {}
             ResponseType::Error { .. } => {}
@@ -120,24 +115,16 @@ impl Trader {
         match msg {
             RestResponse::Err(request, e) => {
                 if let crate::rest::entities::Request::LimitOrder(key, order, ..) = request {
-                    self.market.stocks.get_mut(&order.figi).unwrap().new_orders.remove(&key);
+                    self.market.state_mut(&order.figi).new_orders.remove(&key);
                 }
                 log::error!("ERR from rest!!! {:?}", e);
             }
-            RestResponse::Stocks(stocks) => {
-                stocks.into_iter().for_each(|s| {
-                    self.market.stocks.insert(s.figi.to_owned(), s);
-                });
-            }
+            RestResponse::Stocks(stocks) => self.market.update_stocks(stocks),
             RestResponse::Candles { figi, candles } => {
-                if let Some(stock) = self.market.stocks.get_mut(&figi) {
-                    stock.candles.extend(candles.into_iter());
-                } else  {
-                    log::error!("stocks for {} not found", figi);
-                }
+                self.market.state_mut(&figi).candles.extend(candles.into_iter());
             }
             RestResponse::Order(key, state) => {
-                let stock = self.market.stocks.get_mut(&state.order.figi).unwrap();
+                let stock = self.market.state_mut(&state.order.figi);
                 stock.new_orders.remove(&key);
                 stock.inwork_orders.insert(state.order_id.clone(),state);
             }

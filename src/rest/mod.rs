@@ -48,9 +48,17 @@ pub fn start_client(
 
 async fn send(conf: &Configuration, request: Request) -> Result<Response, ErrX> {
     Ok(match request {
-        Request::GetStocks => market_stocks_get(conf).compat().await?.into(),
-        Request::GetETFs => market_etfs_get(conf).compat().await?.into(),
-        Request::GetBonds => market_bonds_get(conf).compat().await?.into(),
+        Request::GetInstruments => {
+            let stocks = market_stocks_get(conf).compat().await?.payload.instruments;
+            let etfs = market_etfs_get(conf).compat().await?.payload.instruments;
+            let bonds = market_bonds_get(conf).compat().await?.payload.instruments;
+            let currencies = market_currencies_get(conf).compat().await?.payload.instruments;
+            let instruments = stocks.iter()
+                .chain(etfs.iter())
+                .chain(bonds.iter())
+                .chain(currencies.iter());
+            Response::Stocks(instruments.map(Into::into).collect())
+        },
         Request::GetCandles {figi,from,to,interval,} => {
             let response =
                 market_candles_get_own(&conf, &figi, from.to_rfc3339(), to.to_rfc3339(), "1min")

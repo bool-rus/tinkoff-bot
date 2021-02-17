@@ -1,5 +1,5 @@
 use super::*;
-use crate::{model::Stock, streaming};
+use crate::{model::StockState, streaming};
 use crate::model::OrderKind;
 
 pub struct FixedAmount {
@@ -40,11 +40,11 @@ impl FixedAmount {
         Self {buy_threshold, sell_treshold, corrected_buy: buy_threshold, corrected_sell: sell_treshold, ..self}
     }
 
-    fn _make_decision(&mut self, figi: String, bid_price: f64, ask_price: f64, position: u32) -> Decision {
+    fn _make_decision(&mut self, figi: String, bid_price: f64, ask_price: f64, balance: f64) -> Decision {
         let target = self.target;
         let factor = self.factor;
 
-        let over = (position as f64) * bid_price - target;
+        let over = balance * bid_price - target;
         if over/target > self.corrected_sell { //TODO: использовать threshold
             let quantity = (over/bid_price)as u32;
             if quantity == 0 {
@@ -64,7 +64,7 @@ impl FixedAmount {
                 quantity,
             });
         }
-        let under = target - (position as f64) * ask_price;
+        let under = target - balance * ask_price;
         if under/target > self.corrected_buy {
             let quantity = (under/bid_price) as u32;
             if quantity == 0 {
@@ -92,17 +92,17 @@ impl FixedAmount {
     }
 }
 
-fn have_orders(stock: &Stock)  -> bool {
+fn have_orders(stock: &StockState)  -> bool {
     !stock.new_orders.is_empty() || !stock.inwork_orders.is_empty()
 }
 
 impl Strategy for FixedAmount {
     fn make_decision(&mut self, market: &Market) -> Decision {
-        if let Some(stock) = market.stocks.get(&self.figi) {
+        if let Some(stock) = market.state(&self.figi) {
             if have_orders(stock) {
                 return Decision::Relax;
             }
-            let vol =  stock.position;
+            let vol =  stock.position.balance;
             let orderbook = &stock.orderbook;
             if let (Some(&bid), Some(&ask)) = (orderbook.bids.get(0), orderbook.asks.get(0)) {
                 return self._make_decision(self.figi.clone(), bid.0, ask.0, vol)

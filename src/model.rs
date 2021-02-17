@@ -9,13 +9,19 @@ pub use crate::streaming::entities::Interval;
 
 #[derive(Default, Clone)]
 pub struct Market {
-    pub stocks: HashMap<String, Stock>,
+    stocks: HashMap<String, Stock>,
+    state: HashMap<String, StockState>,
 }
 
 impl Market {
+    pub fn update_stocks(&mut self, stocks: Vec<Stock>) {
+        stocks.into_iter().for_each(|s| {
+            self.stocks.insert(s.figi.to_owned(), s);
+        });
+    }
     pub fn update_orders(&mut self, orders: Vec<OrderState>) {
-        for stock in self.stocks.values_mut() {
-            stock.inwork_orders = HashMap::new();
+        for state in self.state.values_mut() {
+            state.inwork_orders = HashMap::new();
         }
         let orders: HashMap<String, HashMap<_, _>> = orders.into_iter().fold(HashMap::new(), |mut map, state|{
             let figi = state.order.figi.clone();
@@ -30,29 +36,43 @@ impl Market {
             map
         });
         orders.into_iter().for_each(|(figi, orders)|{
-            self.stocks.get_mut(&figi).and_then(|stock| {
-                stock.inwork_orders = orders;
+            self.state.get_mut(&figi).and_then(|state| {
+                state.inwork_orders = orders;
                 Some(())
             });
         });
     }
-    pub fn update_positons(&mut self, positions: Vec<(String, u32)>) {
+    pub fn update_positons(&mut self, positions: Vec<(String, Position)>) {
         for (figi, position) in positions {
-            if let Some(stock) = self.stocks.get_mut(&figi) {
-                stock.position = position;
-            }
+            self.state_mut(&figi).position = position;
         }
     }
-    pub fn portfolio(&self) -> Vec<(String, f64)> {
-        log::info!("all stocks: {}", self.stocks.len());
-        self.stocks.values().filter_map(|stock| {
-            let position = stock.position;
-            if position > 0 {
-                Some((stock.ticker.clone(), position as f64))
+    pub fn portfolio(&self) -> Vec<(Stock, Position)> {
+        log::info!("all stocks: {}", self.state.len());
+        self.state.iter().filter_map(|(figi, state)| {
+            let position = state.position;
+            if position.balance != 0.0 {
+                Some((self.stock(figi).clone(), position))
             } else {
                 None
             }
         }).collect()
+    }
+    pub fn stock(&self, figi: &str) -> Stock {
+        self.stocks.get(figi).map(Clone::clone).unwrap_or(Stock {
+            name: figi.to_owned(),
+            figi: figi.to_owned(),
+            ticker: figi.to_owned(),
+            isin: None,
+            min_increment: 0.01,
+            lot: 1,
+        })
+    }
+    pub fn state_mut(&mut self, figi: &str) -> &mut StockState {
+        self.state.entry(figi.to_owned()).or_insert(Default::default())
+    }
+    pub fn state(&self, figi: &str) -> Option<&StockState> {
+        self.state.get(figi)
     }
 }
 
@@ -74,16 +94,29 @@ impl std::hash::Hash for Order {
 
 pub type OrderKind = tinkoff_api::models::OperationType;
 
-#[derive(Debug, Clone)]
-pub struct Stock {
-    pub figi: String,
-    pub ticker: String,
-    pub isin: Option<String>,
-    pub position: u32,
+#[derive(Debug, Clone, Default)]
+pub struct StockState {
+    pub position: Position,
     pub orderbook: Orderbook,
     pub candles: Vec<Candle>,
     pub inwork_orders: HashMap<String, OrderState>,
     pub new_orders: HashMap<SystemTime, Order>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Stock {
+    pub name: String,
+    pub figi: String,
+    pub ticker: String,
+    pub isin: Option<String>,
+    pub min_increment: f64,
+    pub lot: u32,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Position {
+    pub lots: i32,
+    pub balance: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -115,7 +148,7 @@ pub struct Candle {
     pub open: f64,
     pub close: f64,
     pub low: f64,
-    pub hight: f64,
+    pub high: f64,
     pub volume: i32,
     pub time: DateTime,
 }

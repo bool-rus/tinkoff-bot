@@ -105,8 +105,8 @@ pub async fn start() -> Result<(), Error>{
         (chat, response) = &mut traders => {
             match response {
                 Response::Portfolio(positions) => {
-                    let text = positions.into_iter().fold("Твой портфель:".to_owned(), |prev, (ticker, position)| {
-                        format!("{}\n\t{}: {}\n", prev, ticker, position)
+                    let text = positions.into_iter().fold("Твой портфель:".to_owned(), |prev, (stock, position)| {
+                        format!("{}\n\t{}: {}\n", prev, stock.name, position.balance)
                     });
                     api.send(chat.text(text)).await;
                 }
@@ -211,7 +211,7 @@ mod traders {
 
         fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
             for (&chat, receiver) in &self.0 {
-                if let Ok(msg)  = receiver.try_recv() {
+                if let Ok(msg) = receiver.try_recv() {
                     return Poll::Ready((chat, msg))
                 }
             }

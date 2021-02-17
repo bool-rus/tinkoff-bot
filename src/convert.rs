@@ -38,7 +38,7 @@ impl From<tinkoff_api::models::Candle> for Candle {
             open: candle.o,
             close: candle.c,
             low: candle.l,
-            hight: candle.h,
+            high: candle.h,
             volume: candle.v,
             time: DateTime::parse_from_rfc3339(&candle.time).unwrap(),
         }

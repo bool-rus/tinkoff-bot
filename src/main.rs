@@ -13,7 +13,6 @@ mod trader;
 #[tokio::main]
 async fn main() { 
     TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap();
-    log::error!("START");
     let handle = tokio::spawn(async {
         telega::start().compat().await.unwrap()
     });
