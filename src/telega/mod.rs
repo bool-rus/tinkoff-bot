@@ -99,6 +99,7 @@ pub async fn start() -> Result<(), Error>{
     let api = Api::new(token);
     let mut storage = HashMap::new();
     let mut traders = Traders::new();
+    let mut stocks = HashMap::new();
 
     let mut stream = api.stream();
    loop { tokio::select! {
@@ -109,6 +110,12 @@ pub async fn start() -> Result<(), Error>{
                         format!("{}\n\t{}: {}\n", prev, stock.name, position.balance)
                     });
                     api.send(chat.text(text)).await;
+                }
+                Response::Stocks(v) => {
+                    stocks = v.into_iter().fold(HashMap::new(), |mut map, stock| {
+                        map.insert(stock.ticker.clone(), stock);
+                        map
+                    });
                 }
             }
         }

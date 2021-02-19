@@ -1,13 +1,14 @@
 use super::*;
-use crate::{model::StockState, streaming};
+use crate::model::StockState;
 use crate::model::OrderKind;
 
+#[derive(Clone)]
 pub struct FixedAmount {
     figi: String,
     target: f64,
     balance: f64,
     buy_threshold: f64,
-    sell_treshold: f64,
+    sell_threshold: f64,
     corrected_buy: f64,
     corrected_sell: f64,
     factor: f64,
@@ -21,21 +22,12 @@ impl FixedAmount {
             target: 10000.0,
             balance: 0.0,
             buy_threshold: 0.01,
-            sell_treshold: 0.01,
+            sell_threshold: 0.01,
             corrected_buy: 0.01,
             corrected_sell: 0.01,
             factor: 1.0,
             first_buy: true,
         }
-    }
-    pub fn target(self, target: f64) -> Self {
-        Self {target, ..self}
-    }
-    pub fn factor(self, factor: f64) -> Self {
-        Self {factor, ..self}
-    }
-    pub fn thresholds(self, buy_threshold: f64, sell_treshold: f64) -> Self {
-        Self {buy_threshold, sell_treshold, corrected_buy: buy_threshold, corrected_sell: sell_treshold, ..self}
     }
 
     fn _make_decision(&mut self, figi: String, bid_price: f64, ask_price: f64, balance: f64) -> Decision {
@@ -71,8 +63,8 @@ impl FixedAmount {
             log::info!("under: {:.2}, buy", under);
             self.balance -= (quantity as f64) * ask_price;
             self.corrected_sell /= factor;
-            if self.corrected_sell < self.sell_treshold {
-                self.corrected_sell = self.sell_treshold
+            if self.corrected_sell < self.sell_threshold {
+                self.corrected_sell = self.sell_threshold
             }
             self.corrected_buy *= factor;
             if self.first_buy {
@@ -111,5 +103,44 @@ impl Strategy for FixedAmount {
     fn balance(&self) -> f64 {
         self.balance/self.target * 100.0
     }
+
+}
+
+impl ConfigurableStrategy for FixedAmount {
+    fn clone(&self) -> Box<dyn ConfigurableStrategy> {
+        Box::new(Clone::clone(self))
+    }
+
+    fn name(&self) -> &'static str {
+        "Фикс стоимость"
+    }
+    fn description(&self) -> &'static str {
+        r#"Стратегия по сохранению фиксированной общей стоимости позиции. 
+        Если общая стоимость превышает заданный порог отклонения от целевой - продаем
+        Если меньше - покупаем"#
+    }
+
+    fn params(&self) -> Vec<(&'static str, &'static str)> {
+        vec!{
+            ("figi", "FIGI инструмента"),
+            ("target", "На какую сумму должно быть куплено"),
+            ("buy_threshold", "Порог снижения суммы для покупки"),
+            ("sell_threshold", "Порог роста цены для продажи"),
+            ("factor", ""),
+        }
+    }
+
+    fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError> {
+        match key {
+            "figi" => self.figi = value,
+            "target" => self.target = value.parse()?,
+            "buy_threshold" => self.buy_threshold = value.parse()?,
+            "sell_threshold" => self.sell_threshold = value.parse()?,
+            "factor" => self.factor = value.parse()?,
+            _ => return Err(ConfigError::INVALID_PARAM),
+        }
+        Ok(())
+    }
+
 }
 

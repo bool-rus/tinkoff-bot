@@ -1,13 +1,12 @@
 pub mod entities;
 
-use std::time::SystemTime;
-
+use std::{collections::HashMap, time::SystemTime};
 use async_channel::{Receiver, Sender};
 use entities::*;
-use crate::{strategy::{Decision, Dummy, Strategy}, streaming::{Streaming, StreamingRequest, StreamingResponse}};
-use crate::rest::{Rest, RestRequest, RestResponse};
-
+use crate::rest::*;
+use crate::streaming::*;
 use crate::model::*;
+use crate::strategy::{ConfigurableStrategy, Decision};
 
 pub struct TraderConf {
     pub rest_uri: String,
@@ -21,7 +20,7 @@ pub struct Trader {
     streaming: ServiceHandle<StreamingRequest, StreamingResponse>,
     rest: ServiceHandle<RestRequest, RestResponse>,
     market: Market,
-    strategy: Dummy,
+    strategies: HashMap<Key, Box<dyn ConfigurableStrategy>>,
 }
 
 impl Trader {
@@ -35,7 +34,7 @@ impl Trader {
             streaming: Streaming::start(token.clone(), streaming_uri), 
             rest: Rest::start(token, rest_uri), 
             market: Default::default(),
-            strategy: Default::default(),
+            strategies: Default::default(),
         };
         tokio::spawn(async move {
             match trader.run().await {
@@ -68,7 +67,11 @@ impl Trader {
                     self.rest.send(Request::Portfolio).await?;
                 }
             }
-            self.new_decision().await?;
+            let market = &self.market;
+            let decisions: Vec<_> = self.strategies.values_mut().map(|s|s.make_decision(market)).collect();
+            for decision in decisions {
+                self.process_decision(decision).await?;
+            }
         }
     }
 
@@ -76,13 +79,14 @@ impl Trader {
         use entities::*;
         match request {
             Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,
+            Request::AddStrategy(k, s) => { self.strategies.insert(k, s); }
+            Request::RemoveStrategy(k) => { self.strategies.remove(&k); }
         };
         Ok(())
     }
 
 
-    async fn new_decision(&mut self) -> Result<(), ChannelStopped> {
-        let decision = self.strategy.make_decision(&self.market);
+    async fn process_decision(&mut self, decision: Decision) -> Result<(), ChannelStopped> {
         match decision {
             Decision::Relax => {}
             Decision::Order(order) => {
@@ -116,7 +120,10 @@ impl Trader {
                 }
                 log::error!("ERR from rest!!! {:?}", e);
             }
-            RestResponse::Stocks(stocks) => self.market.update_stocks(stocks),
+            RestResponse::Stocks(stocks) => {
+                self.sender.send(Response::Stocks(stocks.clone())).await?;
+                self.market.update_stocks(stocks);
+            },
             RestResponse::Candles { figi, candles } => {
                 self.market.state_mut(&figi).candles.extend(candles.into_iter());
             }

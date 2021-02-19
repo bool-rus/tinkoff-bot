@@ -1,11 +1,6 @@
-use std::{cmp::min, fmt::DebugSet};
-
-use crate::{model::{DateTime, Interval, Market, Order, Orderbook}, rest};
+use crate::model::{Market, Order};
 pub mod fixed_amount;
-use chrono::{Date, Duration, FixedOffset, Local};
 pub use fixed_amount::FixedAmount;
-use crate::streaming::entities::Request as StreamingRequest;
-use crate::rest::entities::Request as RestRequest;
 
 #[derive(Debug)]
 pub enum Decision {
@@ -13,12 +8,28 @@ pub enum Decision {
     Order(Order),
 }
 
+pub trait ConfigurableStrategy: Strategy + Send {
+    fn clone(&self) -> Box<dyn ConfigurableStrategy>;
+    fn name(&self) -> &'static str {
+        "UNDEFINED"
+    }
+    fn description(&self) -> &'static str {
+        "Empty description"
+    }
+    fn params(&self) -> Vec<(&'static str, &'static str)> {
+        Vec::new()
+    }
+    fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError> {
+        Ok(())
+    }
+}
+
 pub trait Strategy {
     fn make_decision(&mut self, market: &Market) -> Decision;
     fn balance(&self) -> f64;
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Dummy;
 
 impl Strategy for Dummy {
@@ -30,6 +41,36 @@ impl Strategy for Dummy {
         0.0
     }
 }
+
+pub use error::ConfigError;
+mod error {
+    use std::{error::Error, fmt::Display, num::ParseFloatError};
+
+    #[derive(Debug)]
+    pub struct  ConfigError(&'static str);
+    impl Display for ConfigError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+    impl Error for ConfigError {}
+    impl ConfigError {
+        pub const INVALID_PARAM: ConfigError= ConfigError("Нет такого параметра");
+    }
+
+    impl From<ParseFloatError> for ConfigError {
+        fn from(_: ParseFloatError) -> Self {
+            Self("Это не дробное число")
+        }
+    }
+}
+
+
+
+
+
+
+
 
 /*
 pub struct StrategyProfiler<T: Strategy> {
