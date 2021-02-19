@@ -1,6 +1,4 @@
 use simplelog::*;
-use tokio_compat_02::FutureExt;
-use trader::{Trader, TraderConf};
 
 mod model;
 mod convert;
@@ -13,8 +11,7 @@ mod trader;
 #[tokio::main]
 async fn main() { 
     TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap();
-    let handle = tokio::spawn(async {
-        telega::start().compat().await.unwrap()
-    });
+    let token = std::env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set");
+    let handle = telega::Bot::start(token);
     handle.await.unwrap();
 }
