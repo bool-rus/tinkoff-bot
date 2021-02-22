@@ -1,6 +1,9 @@
+mod dispatch;
+mod fixed_amount;
 use crate::model::{Market, Order};
-pub mod fixed_amount;
-pub use fixed_amount::FixedAmount;
+use enum_dispatch::enum_dispatch;
+pub use dispatch::StrategyKind;
+use fixed_amount::FixedAmount;
 
 #[derive(Debug)]
 pub enum Decision {
@@ -9,7 +12,6 @@ pub enum Decision {
 }
 
 pub trait ConfigurableStrategy: Strategy + Send {
-    fn clone(&self) -> Box<dyn ConfigurableStrategy>;
     fn name(&self) -> &'static str {
         "UNDEFINED"
     }
@@ -24,6 +26,7 @@ pub trait ConfigurableStrategy: Strategy + Send {
     }
 }
 
+#[enum_dispatch(StrategyKind)]
 pub trait Strategy {
     fn make_decision(&mut self, market: &Market) -> Decision;
     fn balance(&self) -> f64;

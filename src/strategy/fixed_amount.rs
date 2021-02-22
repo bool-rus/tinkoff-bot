@@ -15,6 +15,12 @@ pub struct FixedAmount {
     first_buy: bool,
 }
 
+impl Default for FixedAmount {
+    fn default() -> Self {
+        Self::new("".to_owned())
+    }
+}
+
 impl FixedAmount {
     pub fn new(figi: String) -> Self {
         Self {
@@ -107,10 +113,6 @@ impl Strategy for FixedAmount {
 }
 
 impl ConfigurableStrategy for FixedAmount {
-    fn clone(&self) -> Box<dyn ConfigurableStrategy> {
-        Box::new(Clone::clone(self))
-    }
-
     fn name(&self) -> &'static str {
         "Фикс стоимость"
     }
@@ -141,6 +143,5 @@ impl ConfigurableStrategy for FixedAmount {
         }
         Ok(())
     }
-
 }
 

@@ -3,10 +3,10 @@ pub mod entities;
 use std::{collections::HashMap, time::SystemTime};
 use async_channel::{Receiver, Sender};
 use entities::*;
-use crate::rest::*;
+use crate::{rest::*, strategy::StrategyKind};
 use crate::streaming::*;
 use crate::model::*;
-use crate::strategy::{ConfigurableStrategy, Decision};
+use crate::strategy::{Strategy, Decision};
 
 pub struct TraderConf {
     pub rest_uri: String,
@@ -20,7 +20,7 @@ pub struct Trader {
     streaming: ServiceHandle<StreamingRequest, StreamingResponse>,
     rest: ServiceHandle<RestRequest, RestResponse>,
     market: Market,
-    strategies: HashMap<Key, Box<dyn ConfigurableStrategy>>,
+    strategies: HashMap<Key, StrategyKind>,
 }
 
 impl Trader {

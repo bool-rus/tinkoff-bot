@@ -1,11 +1,12 @@
 use std::time::SystemTime;
 
-use crate::{model::{Position, Stock}, strategy::{ConfigurableStrategy, Strategy}};
+use crate::model::{Position, Stock};
+use crate::strategy::StrategyKind;
 pub type Key = SystemTime;
 
 pub enum Request {
     Portfolio,
-    AddStrategy(Key, Box<dyn ConfigurableStrategy>),
+    AddStrategy(Key, StrategyKind),
     RemoveStrategy(Key)
 }
 
