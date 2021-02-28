@@ -92,19 +92,25 @@ impl Storage {
         let state = State::New;
         Self {context, state}
     }
-    pub async fn on_event(&mut self, event: Event) {
+    pub async fn on_event(&mut self, event: Event) -> Option<Receiver<Response>> {
         let mut state = State::New;
         std::mem::swap(&mut self.state, &mut state);
+        let is_waiting_token = matches!(&state, &State::WaitingToken);
+        let mut result = None;
         self.state = match state.on_event(&mut self.context, event).await {
+            Ok(State::Connected(handle)) => {
+                if is_waiting_token {
+                    result = Some(handle.receiver());
+                }
+                State::Connected(handle)
+            }
             Ok(state) => state,
             Err(_e) => {
                 self.context.send(ResponseMessage::TraderStopped).await;
                 State::New
             }
         };
-    }
-    pub fn invoke_receiver(&mut self) -> Option<Receiver<Response>> {
-        self.context.invoke_receiver()
+        result
     }
 }
 
@@ -113,14 +119,13 @@ pub struct Context {
     chat_id: ChatId,
     strategy_types: HashMap<String, StrategyKind>,
     strategies: HashMap<String, String>,
-    receiver: Option<Receiver<Response>>,
 }
 
 impl Context {
     pub fn new(api: Api, chat_id: ChatId) -> Self {
         let strategy_types = StrategyKind::variants();
         let strategies = HashMap::new();
-        Self {api, chat_id, strategy_types, strategies, receiver: None}
+        Self {api, chat_id, strategy_types, strategies}
     }
     fn strategies_markup(&self) -> ReplyMarkup {
         let buttons: Vec<_> = self.strategy_types.keys().map(|s|{
@@ -160,13 +165,5 @@ impl Context {
     }
     pub fn add_strategy(&mut self, name: String, strategy: String) {
         self.strategies.insert(name, strategy);
-    }
-    pub fn set_receiver(&mut self, r: Receiver<Response>) {
-        self.receiver = Some(r)
-    }
-    pub fn invoke_receiver(&mut self) -> Option<Receiver<Response>> {
-        let mut result = None;
-        std::mem::swap(&mut result, &mut self.receiver);
-        result
     }
 }

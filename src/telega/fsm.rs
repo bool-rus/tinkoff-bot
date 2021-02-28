@@ -102,7 +102,6 @@ async fn connect(ctx: &mut Context, token: String) -> State {
         token,
     };
     let handle = Trader::start(conf);
-    ctx.set_receiver(handle.receiver());
     ctx.send(ResponseMessage::TraderStarted).await;
     State::Connected(handle)
 }

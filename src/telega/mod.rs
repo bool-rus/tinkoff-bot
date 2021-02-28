@@ -61,8 +61,7 @@ impl Bot {
                 self.storage.get_mut(&chat_id).unwrap()
             }
         };
-        storage.on_event(message.into()).await;
-        if let Some(r) = storage.invoke_receiver() {
+        if let Some(r) = storage.on_event(message.into()).await {
             self.traders.insert(chat_id, r);
         }
         Ok(())
@@ -76,7 +75,6 @@ impl Bot {
                     let result = self.on_trader(chat, response).await;
                 }
                 Some(update_result) = stream.next() => {
-                    println!("update: {:?}", update_result);
                     let update;
                     match update_result {
                         Ok(v) => update = v,
