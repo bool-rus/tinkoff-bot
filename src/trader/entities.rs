@@ -5,9 +5,9 @@ use crate::strategy::StrategyKind;
 pub type Key = String;
 
 #[derive(Clone)]
-pub enum Request {
+pub enum Request<S> {
     Portfolio,
-    AddStrategy(Key, StrategyKind),
+    AddStrategy(Key, S),
     RemoveStrategy(Key)
 }
 

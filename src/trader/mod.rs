@@ -14,17 +14,17 @@ pub struct TraderConf {
     pub token: String,
 }
 
-pub struct Trader {
+pub struct Trader<S> {
     sender: Sender<Response>,
-    receiver: Receiver<Request>,
+    receiver: Receiver<Request<S>>,
     streaming: ServiceHandle<StreamingRequest, StreamingResponse>,
     rest: ServiceHandle<RestRequest, RestResponse>,
     market: Market,
-    strategies: HashMap<Key, StrategyKind>,
+    strategies: HashMap<Key, S>,
 }
 
-impl Trader {
-    pub fn start(conf: TraderConf) -> ServiceHandle<Request, Response> {
+impl<S: Strategy + Send + 'static> Trader<S> {
+    pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response> {
         let (sender, r) = async_channel::bounded(1000);
         let (s, receiver) = async_channel::bounded(1000);
         let TraderConf{rest_uri, streaming_uri, token} = conf;
@@ -75,7 +75,7 @@ impl Trader {
         }
     }
 
-    async fn process_request(&mut self, request: entities::Request) -> Result<(), ChannelStopped> {
+    async fn process_request(&mut self, request: entities::Request<S>) -> Result<(), ChannelStopped> {
         use entities::*;
         match request {
             Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,

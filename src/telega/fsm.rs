@@ -1,9 +1,11 @@
-use crate::{model::{ChannelStopped, ServiceHandle}, strategy::Strategy as _, trader::entities::{Request, Response}};
+use crate::model::{ChannelStopped, ServiceHandle};
+use crate::strategy::{Strategy as _, StrategyKind};
+use crate::trader::entities::{Request, Response};
 use crate::strategy::StrategyKind as Strategy;
 
 use super::entities::*;
 
-type Handle = ServiceHandle<Request, Response>;
+type Handle = ServiceHandle<Request<StrategyKind>, Response>;
 
 #[derive(Clone, PartialEq)]
 pub struct NamedStrategy {
