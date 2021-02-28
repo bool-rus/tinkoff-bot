@@ -2,7 +2,7 @@ use super::*;
 use crate::model::StockState;
 use crate::model::OrderKind;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct FixedAmount {
     figi: String,
     target: f64,
@@ -110,9 +110,6 @@ impl Strategy for FixedAmount {
         self.balance/self.target * 100.0
     }
 
-}
-
-impl ConfigurableStrategy for FixedAmount {
     fn name(&self) -> &'static str {
         "Фикс стоимость"
     }

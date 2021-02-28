@@ -2,8 +2,9 @@ use std::time::SystemTime;
 
 use crate::model::{Position, Stock};
 use crate::strategy::StrategyKind;
-pub type Key = SystemTime;
+pub type Key = String;
 
+#[derive(Clone)]
 pub enum Request {
     Portfolio,
     AddStrategy(Key, StrategyKind),

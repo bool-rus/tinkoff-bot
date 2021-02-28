@@ -11,7 +11,22 @@ pub enum Decision {
     Order(Order),
 }
 
-pub trait ConfigurableStrategy: Strategy + Send {
+
+#[enum_dispatch(StrategyKind)]
+pub trait Strategy {
+    fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
+    fn params(&self) -> Vec<(&'static str, &'static str)>;
+    fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError>;
+    fn make_decision(&mut self, market: &Market) -> Decision;
+    fn balance(&self) -> f64;
+}
+
+#[derive(Default, Clone)]
+pub struct Dummy;
+
+impl Strategy for Dummy {
+
     fn name(&self) -> &'static str {
         "UNDEFINED"
     }
@@ -24,18 +39,6 @@ pub trait ConfigurableStrategy: Strategy + Send {
     fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError> {
         Ok(())
     }
-}
-
-#[enum_dispatch(StrategyKind)]
-pub trait Strategy {
-    fn make_decision(&mut self, market: &Market) -> Decision;
-    fn balance(&self) -> f64;
-}
-
-#[derive(Default, Clone)]
-pub struct Dummy;
-
-impl Strategy for Dummy {
     fn make_decision(&mut self, market: &Market) -> Decision {
         Decision::Relax
     }

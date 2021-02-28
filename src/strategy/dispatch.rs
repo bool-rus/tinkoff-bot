@@ -1,17 +1,23 @@
+use std::collections::HashMap;
+
 use enum_dispatch::enum_dispatch;
 use super::fixed_amount::FixedAmount;
+use super::Strategy;
 use strum::IntoEnumIterator;
 use strum::EnumIter;
 
 
 #[enum_dispatch]
-#[derive(EnumIter)]
+#[derive(EnumIter, Clone, PartialEq)]
 pub enum StrategyKind {
     FixedAmount
 }
 
 impl StrategyKind {
-    pub fn variants() -> Vec<StrategyKind> {
-        Self::iter().collect()
+    pub fn variants() -> HashMap<String, StrategyKind> {
+        Self::iter().fold(HashMap::new(), |mut map, s| {
+            map.insert(s.name().to_owned(), s);
+            map
+        })
     }
 }

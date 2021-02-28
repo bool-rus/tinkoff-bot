@@ -1,5 +1,5 @@
-mod impls;
 mod entities;
+mod fsm;
 
 use entities::*;
 use tokio::task::JoinHandle;
@@ -15,10 +15,12 @@ use traders::Traders;
 use crate::model::Stock;
 use crate::trader::entities::Response;
 
+use self::fsm::State;
+
 
 pub struct Bot {
     api: Api,
-    storage: HashMap<ChatId, State>,
+    storage: HashMap<ChatId, Storage>,
     traders: Traders,
     stocks: HashMap<String, Stock>,
 }
@@ -41,39 +43,45 @@ impl Bot {
         }
         Ok(())
     }
-    async fn on_chat(&mut self, message: Message) -> Result<(), Error> {
+    async fn on_chat(&mut self, message: UpdateKind) -> Result<(), Error> {
         let api = &mut self.api;
-        let storage = &mut self.storage;
-        let chat_id = message.to_source_chat();
-        let state = match storage.get_mut(&chat_id) {
+        let chat_id = match &message {
+            UpdateKind::Message(msg) => msg.to_source_chat(),
+            UpdateKind::CallbackQuery(msg) => {
+                let answer = msg.answer("bugoga");    
+                api.send(answer).await;        
+                msg.from.to_user_id().into()
+            },
+            _ => return Ok(())
+        };
+        let storage = match self.storage.get_mut(&chat_id) {
             Some(v) => v,
             None => {
-                storage.insert(chat_id, State::New);
-                storage.get_mut(&chat_id).unwrap()
+                self.storage.insert(chat_id, Storage::new(api.clone(), chat_id));
+                self.storage.get_mut(&chat_id).unwrap()
             }
         };
-        
-        match state.process_chat(&message).await {
-            ResponseMessage::Dummy => { api.send(chat_id.text("Сорян, мне нечего ответить...")).await?; }
-            ResponseMessage::RequestToken => { api.send(chat_id.text("Принял, засылай токен")).await?; }
-            ResponseMessage::TraderStarted(r) => {
-                self.traders.insert(chat_id, r);
-                api.send(chat_id.text("Красава, подключаюсь...")).await?;
-            }
-            ResponseMessage::InProgress => { api.send(SendChatAction::new(chat_id, ChatAction::Typing)).await?; },
-            ResponseMessage::TraderStopped => { api.send(chat_id.text("Упс, я обосрался... Давай сначала")).await?; }
-        };
+        storage.on_event(message.into()).await;
+        if let Some(r) = storage.invoke_receiver() {
+            self.traders.insert(chat_id, r);
+        }
         Ok(())
     }
 
     async fn run(&mut self) -> ! {
         let mut stream = self.api.stream();
+        let chat = ChatId::new(212858650);
+        let markup = ReplyMarkup::from(create_buttons());
+        let mut msg = chat.text("test");
+    
+        self.api.send(msg).await;
         loop {
             tokio::select! {
                 (chat, response) = &mut self.traders => {
                     let result = self.on_trader(chat, response).await;
                 }
                 Some(update_result) = stream.next() => {
+                    println!("update: {:?}", update_result);
                     let update;
                     match update_result {
                         Ok(v) => update = v,
@@ -84,9 +92,7 @@ impl Bot {
                             continue;
                         }
                     }
-                    if let UpdateKind::Message(message) = update.kind {
-                        let result = self.on_chat(message).await;
-                    }
+                    let result = self.on_chat(update.kind).await;
                 }
             }
         }
