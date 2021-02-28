@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use async_channel::Receiver;
 
-use crate::strategy::StrategyKind; 
+use crate::{model::Stock, strategy::{ConfigError, Strategy, StrategyKind}}; 
 use crate::trader::entities::Response;
 use telegram_bot::*;
 
@@ -82,7 +82,7 @@ impl From<&str> for Command {
 }
 
 pub struct Storage {
-    context: Context,
+    pub context: Context,
     state: State,
 }
 
@@ -117,6 +117,7 @@ impl Storage {
 pub struct Context {
     api: Api,
     chat_id: ChatId,
+    stocks: HashMap<String, Stock>,
     strategy_types: HashMap<String, StrategyKind>,
     strategies: HashMap<String, String>,
 }
@@ -125,13 +126,27 @@ impl Context {
     pub fn new(api: Api, chat_id: ChatId) -> Self {
         let strategy_types = StrategyKind::variants();
         let strategies = HashMap::new();
-        Self {api, chat_id, strategy_types, strategies}
+        let stocks = Default::default();
+        Self {api, chat_id, strategy_types, strategies, stocks}
     }
     fn strategies_markup(&self) -> ReplyMarkup {
         let buttons: Vec<_> = self.strategy_types.keys().map(|s|{
             vec![InlineKeyboardButton::callback(s.to_owned(), s.to_owned())]
         }).collect();
         buttons.into()
+    }
+    pub async fn set_parameter<S: Strategy>(&self, strategy: &mut S, key: &str, value: String) -> Result<(),ConfigError> {
+        if key == "ticker" {
+            if let Some(value) = self.stocks.get(&value) {
+                strategy.configure("figi", value.figi.clone())?;
+                self.api.send(self.chat_id.text(format!("Бумага найдена: {}", value.name))).await;
+            } else {
+                return Err(ConfigError::TICKER_NOT_FOUND);
+            }
+        } else {
+            strategy.configure(key, value)?;
+        }
+        Ok(())
     }
     pub async fn send(&mut self, msg: ResponseMessage) {
         let chat_id = self.chat_id;
@@ -148,7 +163,11 @@ impl Context {
                 self.api.send(msg).await;
              }
             ResponseMessage::SelectStrategyParam(params) => {
-                let buttons: Vec<_> = params.into_iter().map(|(name, desc)|{
+                let buttons: Vec<_> = params.into_iter().map(|(mut name, mut desc)|{
+                    if name == "figi" {
+                        name = "ticker";
+                        desc = "Тикер бумаги";
+                    }
                     vec![InlineKeyboardButton::callback(desc, name)]
                 }).collect();
                 let mut msg = chat_id.text("Выбирай параметр для настройки");
@@ -165,5 +184,8 @@ impl Context {
     }
     pub fn add_strategy(&mut self, name: String, strategy: String) {
         self.strategies.insert(name, strategy);
+    }
+    pub fn set_stocks(&mut self, stocks: HashMap<String, Stock>) {
+        self.stocks = stocks;
     }
 }

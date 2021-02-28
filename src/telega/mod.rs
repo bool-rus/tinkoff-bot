@@ -11,22 +11,18 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use telegram_bot::*;
 use traders::Traders;
-
-use crate::model::Stock;
 use crate::trader::entities::Response;
-
-use self::fsm::State;
 
 
 pub struct Bot {
     api: Api,
     storage: HashMap<ChatId, Storage>,
     traders: Traders,
-    stocks: HashMap<String, Stock>,
 }
 
 impl Bot {
     async fn on_trader(&mut self, chat: ChatId, response: Response) -> Result<(), Error> {
+        let storage = self.storage.get_mut(&chat).expect("storage must be");
         match response {
             Response::Portfolio(positions) => {
                 let text = positions.into_iter().fold("Твой портфель:".to_owned(), |prev, (stock, position)| {
@@ -35,10 +31,11 @@ impl Bot {
                 self.api.send(chat.text(text)).await?;
             }
             Response::Stocks(v) => {
-                self.stocks = v.into_iter().fold(HashMap::new(), |mut map, stock| {
+                let stocks = v.into_iter().fold(HashMap::new(), |mut map, stock| {
                     map.insert(stock.ticker.clone(), stock);
                     map
                 });
+                storage.context.set_stocks(stocks)
             }
         }
         Ok(())
@@ -95,9 +92,8 @@ impl Bot {
         let api = Api::new(token);
         let storage = HashMap::new();
         let traders = Traders::new();
-        let stocks = HashMap::new();
         tokio::spawn( async move {
-            Self {api, storage, traders, stocks}.run().compat().await
+            Self {api, storage, traders}.run().compat().await
         })
     }
 }

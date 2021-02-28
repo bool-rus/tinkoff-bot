@@ -71,7 +71,7 @@ impl State {
                 S::WaitingStrategyParam(handle, StrategyParam { strategy, name })
             }
             (S::WaitingStrategyParam(handle, StrategyParam { mut strategy, name }), E::Text(value)) => {
-                match strategy.strategy.configure(&name, value) {
+                match ctx.set_parameter(&mut strategy.strategy, &name, value).await {
                     Ok(()) => to_choosing_strategy_param(ctx, handle, strategy).await,
                     Err(e) => with_err(ctx, S::WaitingStrategyParam(handle, StrategyParam {strategy, name}), e).await
                 }

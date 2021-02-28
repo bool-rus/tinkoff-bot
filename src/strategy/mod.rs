@@ -62,6 +62,7 @@ mod error {
     impl Error for ConfigError {}
     impl ConfigError {
         pub const INVALID_PARAM: ConfigError= ConfigError("Нет такого параметра");
+        pub const TICKER_NOT_FOUND: ConfigError = ConfigError("Бумага с таким тикером не найдена");
     }
 
     impl From<ParseFloatError> for ConfigError {
