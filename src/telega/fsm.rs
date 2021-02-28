@@ -1,6 +1,4 @@
-use async_channel::Receiver;
-
-use crate::{model::ServiceHandle, strategy::{self, Strategy as _}, trader::entities::{Request, Response}};
+use crate::{model::{ChannelStopped, ServiceHandle}, strategy::Strategy as _, trader::entities::{Request, Response}};
 use crate::strategy::StrategyKind as Strategy;
 
 use super::entities::*;
@@ -30,22 +28,18 @@ pub enum State {
 }
 
 impl State {
-    pub async fn on_event(self, ctx: &mut Context, event: Event) -> State {
+    pub async fn on_event(self, ctx: &mut Context, event: Event) -> Result<State, ChannelStopped> {
         use State as S;
         use Event as E;
         use ResponseMessage as RM;
-        match (self, event) {
+        Ok( match (self, event) {
             (_, E::Start) => {
                 ctx.send(RM::RequestToken).await;
                 S::WaitingToken
             },
-            (_, E::TraderFail) => {
-                ctx.send(RM::TraderStopped).await;
-                S::New
-            }
             (S::WaitingToken, E::Text(token)) => connect(ctx, token).await,
             (S::Connected(handle), E::Portfolio) => {
-                handle.send(Request::Portfolio).await;
+                handle.send(Request::Portfolio).await?;
                 ctx.send(RM::InProgress).await;
                 S::Connected(handle)
             }
@@ -66,7 +60,7 @@ impl State {
                 to_choosing_strategy_param(ctx, handle, NamedStrategy {strategy, name}).await,
             (S::ChoosingStrategyParam(handle, NamedStrategy { strategy, name }), E::Finish) => {
                 ctx.add_strategy(name.clone(), strategy.description().to_owned());
-                handle.send(Request::AddStrategy(name, strategy)).await;
+                handle.send(Request::AddStrategy(name, strategy)).await?;
                 ctx.send(RM::StrategyAdded).await;
                 S::Connected(handle)
             }
@@ -78,14 +72,13 @@ impl State {
                 match strategy.strategy.configure(&name, value) {
                     Ok(()) => to_choosing_strategy_param(ctx, handle, strategy).await,
                     Err(e) => with_err(ctx, S::WaitingStrategyParam(handle, StrategyParam {strategy, name}), e).await
-                    
                 }
             }
             (state, _) => {
                 ctx.send(RM::Dummy).await;
                 state
             },
-        }
+        })
     }
 }
 

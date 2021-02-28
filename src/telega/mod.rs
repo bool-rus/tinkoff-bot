@@ -48,7 +48,7 @@ impl Bot {
         let chat_id = match &message {
             UpdateKind::Message(msg) => msg.to_source_chat(),
             UpdateKind::CallbackQuery(msg) => {
-                let answer = msg.answer("bugoga");    
+                let answer = msg.answer("Принято");    
                 api.send(answer).await;        
                 msg.from.to_user_id().into()
             },
@@ -70,11 +70,6 @@ impl Bot {
 
     async fn run(&mut self) -> ! {
         let mut stream = self.api.stream();
-        let chat = ChatId::new(212858650);
-        let markup = ReplyMarkup::from(create_buttons());
-        let mut msg = chat.text("test");
-    
-        self.api.send(msg).await;
         loop {
             tokio::select! {
                 (chat, response) = &mut self.traders => {
@@ -109,16 +104,9 @@ impl Bot {
     }
 }
 
-fn create_buttons() -> Vec<Vec<InlineKeyboardButton>>{
-    let kb =  InlineKeyboardButton::callback;
-    vec![
-        vec![kb("top left", "tl"), kb("top right", "tr")],
-        vec![kb("bottom left", "bl"), kb("bottom right", "br")],
-    ]
-}
-
 mod traders {
-    use std::{collections::HashMap, future::Future, pin::Pin, task::Poll};
+    use std::collections::HashMap;
+    use std::task::Poll;
 
     use async_channel::Receiver;
     use telegram_bot::ChatId;
@@ -141,7 +129,7 @@ mod traders {
 
     impl Unpin for Traders {}
 
-    impl Future for Traders {
+    impl std::future::Future for Traders {
         type Output = (ChatId, Response);
 
         fn poll(self: std::pin::Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {

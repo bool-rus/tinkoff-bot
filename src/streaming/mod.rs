@@ -41,8 +41,14 @@ impl Streaming {
         let (sender,r) = async_channel::bounded(100);
         let (s, receiver) = async_channel::bounded(100);
         tokio::spawn (async move {
-            let websocket = connect(&uri, &token).await.unwrap();
-            Self {token, uri, need_pong: false, state: HashSet::new(), sender, receiver, websocket, }.run().await;
+            match connect(&uri, &token).await {
+                Ok(websocket) => {
+                    Self {token, uri, need_pong: false, state: HashSet::new(), sender, receiver, websocket, }.run().await
+                }
+                Err(e) => {
+                    log::error!("Some error on websocket connecting: {:?}", e)
+                }
+            }
         });
         ServiceHandle::new( s,  r)
     }

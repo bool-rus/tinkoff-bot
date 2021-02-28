@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use async_channel::Receiver;
 
-use crate::{model::ServiceHandle, strategy::{Strategy, StrategyKind}}; 
-use crate::trader::entities::{Request,Response};
+use crate::strategy::StrategyKind; 
+use crate::trader::entities::Response;
 use telegram_bot::*;
 
 use super::fsm::State;
@@ -15,7 +15,6 @@ pub enum Event {
     Finish,
     Text(String),
     Select(String),
-    TraderFail,
     Unknown,
 }
 
@@ -96,7 +95,13 @@ impl Storage {
     pub async fn on_event(&mut self, event: Event) {
         let mut state = State::New;
         std::mem::swap(&mut self.state, &mut state);
-        self.state = state.on_event(&mut self.context, event).await;
+        self.state = match state.on_event(&mut self.context, event).await {
+            Ok(state) => state,
+            Err(_e) => {
+                self.context.send(ResponseMessage::TraderStopped).await;
+                State::New
+            }
+        };
     }
     pub fn invoke_receiver(&mut self) -> Option<Receiver<Response>> {
         self.context.invoke_receiver()
