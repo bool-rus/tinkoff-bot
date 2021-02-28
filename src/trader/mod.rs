@@ -3,7 +3,7 @@ pub mod entities;
 use std::{collections::HashMap, time::SystemTime};
 use async_channel::{Receiver, Sender};
 use entities::*;
-use crate::{rest::*, strategy::StrategyKind};
+use crate::rest::*;
 use crate::streaming::*;
 use crate::model::*;
 use crate::strategy::{Strategy, Decision};

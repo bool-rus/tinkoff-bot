@@ -1,9 +1,11 @@
 mod dispatch;
 mod fixed_amount;
+mod trailing_stop;
 use crate::model::{Market, Order};
 use enum_dispatch::enum_dispatch;
 pub use dispatch::StrategyKind;
 use fixed_amount::FixedAmount;
+use trailing_stop::TrailingStop;
 
 #[derive(Debug)]
 pub enum Decision {
@@ -48,7 +50,7 @@ impl Strategy for Dummy {
 
 pub use error::ConfigError;
 mod error {
-    use std::{error::Error, fmt::Display, num::ParseFloatError};
+    use std::{error::Error, fmt::Display, num::{ParseFloatError, ParseIntError}};
 
     #[derive(Debug)]
     pub struct  ConfigError(&'static str);
@@ -64,7 +66,13 @@ mod error {
 
     impl From<ParseFloatError> for ConfigError {
         fn from(_: ParseFloatError) -> Self {
-            Self("Это не дробное число")
+            Self("Не-не, нужно дробное число")
+        }
+    }
+
+    impl From<ParseIntError> for ConfigError {
+        fn from(_: ParseIntError) -> Self {
+            Self("Не-не, нужно целое число")
         }
     }
 }

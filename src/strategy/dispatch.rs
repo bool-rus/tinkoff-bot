@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use enum_dispatch::enum_dispatch;
 use super::fixed_amount::FixedAmount;
+use super::trailing_stop::TrailingStop;
 use super::Strategy;
 use strum::IntoEnumIterator;
 use strum::EnumIter;
@@ -10,7 +11,8 @@ use strum::EnumIter;
 #[enum_dispatch(Strategy)]
 #[derive(EnumIter, Clone, PartialEq)]
 pub enum StrategyKind {
-    FixedAmount
+    FixedAmount,
+    TrailingStop,
 }
 
 impl StrategyKind {
