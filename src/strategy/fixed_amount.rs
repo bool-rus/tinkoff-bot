@@ -53,12 +53,12 @@ impl FixedAmount {
                 self.corrected_buy = self.buy_threshold;
             }
             self.corrected_sell *= factor;
-            return Decision::Order(Order {
+            return Decision::Order(vec![Order {
                 kind: OrderKind::Sell,
                 figi, 
                 price: bid_price, 
                 quantity,
-            });
+            }]);
         }
         let under = target - balance * ask_price;
         if under/target > self.corrected_buy {
@@ -77,12 +77,12 @@ impl FixedAmount {
                 self.balance = 0.0;
                 self.first_buy = false;
             }
-            return Decision::Order(Order {
+            return Decision::Order(vec![Order {
                 kind: OrderKind::Buy,
                 figi, 
                 price: ask_price, 
                 quantity,
-            });
+            }]);
         }
         Decision::Relax
     }

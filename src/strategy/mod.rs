@@ -8,11 +8,9 @@ use fixed_amount::FixedAmount;
 #[derive(Debug)]
 pub enum Decision {
     Relax,
-    Order(Order),
+    Order(Vec<Order>),
 }
-
-
-#[enum_dispatch(StrategyKind)]
+#[enum_dispatch]
 pub trait Strategy {
     fn name(&self) -> &'static str;
     fn description(&self) -> &'static str;

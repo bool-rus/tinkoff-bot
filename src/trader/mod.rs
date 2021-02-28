@@ -89,11 +89,13 @@ impl Trader {
     async fn process_decision(&mut self, decision: Decision) -> Result<(), ChannelStopped> {
         match decision {
             Decision::Relax => {}
-            Decision::Order(order) => {
-                let stock = self.market.state_mut(&order.figi);
-                let key = SystemTime::now();
-                stock.new_orders.insert(key, order.clone());
-                self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
+            Decision::Order(orders) => {
+                for order in orders {
+                    let stock = self.market.state_mut(&order.figi);
+                    let key = SystemTime::now();
+                    stock.new_orders.insert(key, order.clone());
+                    self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
+                }
             }
         }
         Ok(())

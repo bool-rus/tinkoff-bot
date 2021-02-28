@@ -7,7 +7,7 @@ use strum::IntoEnumIterator;
 use strum::EnumIter;
 
 
-#[enum_dispatch]
+#[enum_dispatch(Strategy)]
 #[derive(EnumIter, Clone, PartialEq)]
 pub enum StrategyKind {
     FixedAmount
