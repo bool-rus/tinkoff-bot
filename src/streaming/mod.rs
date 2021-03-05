@@ -3,7 +3,7 @@ pub mod entities;
 use std::{collections::HashSet, str::FromStr};
 use futures_util::{SinkExt, StreamExt};
 
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, time::Instant};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
 use tungstenite::{Message, http};
 use async_channel::{Sender, Receiver};
@@ -30,10 +30,15 @@ pub struct Streaming {
     token: String,
     uri: String,
     need_pong: bool,
+    timer: tokio::time::Interval,
     state: HashSet<Request>,
     sender: Sender<Response>,
     receiver: Receiver<Request>,
     websocket: WebSocketStream<MaybeTlsStream<TcpStream>>,
+}
+
+fn create_timer() -> tokio::time::Interval {
+    tokio::time::interval(std::time::Duration::from_secs(17))
 }
 
 impl Streaming {
@@ -43,7 +48,8 @@ impl Streaming {
         tokio::spawn (async move {
             match connect(&uri, &token).await {
                 Ok(websocket) => {
-                    Self {token, uri, need_pong: false, state: HashSet::new(), sender, receiver, websocket, }.run().await
+                    let timer = create_timer();
+                    Self {token, uri, need_pong: false, state: HashSet::new(), sender, receiver, websocket, timer}.run().await
                 }
                 Err(e) => {
                     log::error!("Some error on websocket connecting: {:?}", e)
@@ -54,14 +60,13 @@ impl Streaming {
     }
     async fn run(mut self) {
         log::info!("Streaming service started");
-        let mut timer = tokio::time::interval(std::time::Duration::from_secs(17));
         loop {tokio::select! {
             Some(msg) = self.websocket.next() => self.on_response(msg).await,
             req = self.receiver.recv() => match req {
                 Ok(req) => {self.on_command(req).await;}
                 Err(_) => break,
             },
-            _ = timer.tick() => self.on_timer().await,
+            _ = self.timer.tick() => self.on_timer().await,
         }}
     }
     async fn on_response(&mut self, msg: Result<Message, tungstenite::error::Error>) {
@@ -118,6 +123,7 @@ impl Streaming {
             match connect(&self.uri, &self.token).await {
                 Ok(ws) => {
                     self.websocket = ws;
+                    self.timer = create_timer();
                     self.need_pong = false;
                     match self.resubscribe().await {
                         Ok(_) => break,
