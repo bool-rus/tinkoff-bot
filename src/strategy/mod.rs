@@ -9,8 +9,7 @@ use trailing_stop::TrailingStop;
 
 #[derive(Debug)]
 pub enum Decision {
-    Relax,
-    Order(Vec<Order>),
+    Order(Order),
 }
 #[enum_dispatch]
 pub trait Strategy {
@@ -18,7 +17,7 @@ pub trait Strategy {
     fn description(&self) -> &'static str;
     fn params(&self) -> Vec<(&'static str, &'static str)>;
     fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError>;
-    fn make_decision(&mut self, market: &Market) -> Decision;
+    fn make_decision(&mut self, market: &Market) -> Vec<Decision>;
     fn balance(&self) -> f64;
 }
 
@@ -39,8 +38,8 @@ impl Strategy for Dummy {
     fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError> {
         Ok(())
     }
-    fn make_decision(&mut self, market: &Market) -> Decision {
-        Decision::Relax
+    fn make_decision(&mut self, market: &Market) -> Vec<Decision> {
+        Vec::new()
     }
 
     fn balance(&self) -> f64 {

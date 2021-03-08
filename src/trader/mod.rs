@@ -68,7 +68,7 @@ impl<S: Strategy + Send + 'static> Trader<S> {
                 }
             }
             let market = &self.market;
-            let decisions: Vec<_> = self.strategies.values_mut().map(|s|s.make_decision(market)).collect();
+            let decisions: Vec<_> = self.strategies.values_mut().map(|s|s.make_decision(market).into_iter()).flatten().collect();
             for decision in decisions {
                 self.process_decision(decision).await?;
             }
@@ -88,14 +88,11 @@ impl<S: Strategy + Send + 'static> Trader<S> {
 
     async fn process_decision(&mut self, decision: Decision) -> Result<(), ChannelStopped> {
         match decision {
-            Decision::Relax => {}
-            Decision::Order(orders) => {
-                for order in orders {
-                    let stock = self.market.state_mut(&order.figi);
-                    let key = SystemTime::now();
-                    stock.new_orders.insert(key, order.clone());
-                    self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
-                }
+            Decision::Order(order) => {
+                let stock = self.market.state_mut(&order.figi);
+                let key = SystemTime::now();
+                stock.new_orders.insert(key, order.clone());
+                self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
             }
         }
         Ok(())
