@@ -15,7 +15,7 @@ pub struct TraderConf {
 }
 
 pub struct Trader<S> {
-    sender: Sender<Response>,
+    sender: Sender<Response<S>>,
     receiver: Receiver<Request<S>>,
     streaming: ServiceHandle<StreamingRequest, StreamingResponse>,
     rest: ServiceHandle<RestRequest, RestResponse>,
@@ -24,7 +24,7 @@ pub struct Trader<S> {
 }
 
 impl<S: Strategy + Send + 'static> Trader<S> {
-    pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response> {
+    pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response<S>> {
         let (sender, r) = async_channel::bounded(1000);
         let (s, receiver) = async_channel::bounded(1000);
         let TraderConf{rest_uri, streaming_uri, token} = conf;
@@ -81,6 +81,7 @@ impl<S: Strategy + Send + 'static> Trader<S> {
             Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,
             Request::AddStrategy(k, s) => { self.strategies.insert(k, s); }
             Request::RemoveStrategy(k) => { self.strategies.remove(&k); }
+            Request::Strategies => unimplemented!()
         };
         Ok(())
     }

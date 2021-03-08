@@ -1,18 +1,18 @@
-use std::time::SystemTime;
-
 use crate::model::{Position, Stock};
-use crate::strategy::StrategyKind;
+
 pub type Key = String;
 
 #[derive(Clone)]
 pub enum Request<S> {
     Portfolio,
     AddStrategy(Key, S),
-    RemoveStrategy(Key)
+    RemoveStrategy(Key),
+    Strategies,
 }
 
 #[derive(Clone)]
-pub enum Response {
+pub enum Response<S> {
     Portfolio(Vec<(Stock, Position)>),
     Stocks(Vec<Stock>),
+    Strategies(Vec<S>),
 }

@@ -11,7 +11,10 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use telegram_bot::*;
 use traders::Traders;
-use crate::trader::entities::Response;
+
+use crate::strategy::StrategyKind;
+
+type Response = crate::trader::entities::Response<StrategyKind>;
 
 
 pub struct Bot {
@@ -37,6 +40,7 @@ impl Bot {
                 });
                 storage.context.set_stocks(stocks)
             }
+            Response::Strategies(s) => unimplemented!()
         }
         Ok(())
     }
@@ -105,7 +109,9 @@ mod traders {
     use async_channel::Receiver;
     use telegram_bot::ChatId;
 
-    use crate::trader::entities::Response;
+    use crate::strategy::StrategyKind;
+
+    type Response = crate::trader::entities::Response<StrategyKind>;
 
     pub struct Traders(HashMap<ChatId, Receiver<Response>>);
 

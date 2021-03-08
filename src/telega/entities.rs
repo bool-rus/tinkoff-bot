@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use async_channel::Receiver;
 
 use crate::{model::Stock, strategy::{ConfigError, Strategy, StrategyKind}}; 
-use crate::trader::entities::Response;
 use telegram_bot::*;
-
 use super::fsm::State;
+
+type Response = crate::trader::entities::Response<StrategyKind>;
 
 pub enum Event {
     Start,

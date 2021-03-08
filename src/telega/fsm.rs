@@ -5,7 +5,7 @@ use crate::strategy::StrategyKind as Strategy;
 
 use super::entities::*;
 
-type Handle = ServiceHandle<Request<StrategyKind>, Response>;
+type Handle = ServiceHandle<Request<StrategyKind>, Response<StrategyKind>>;
 
 #[derive(Clone, PartialEq)]
 pub struct NamedStrategy {
