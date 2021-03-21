@@ -23,7 +23,7 @@ pub struct Trader<S> {
     strategies: HashMap<Key, S>,
 }
 
-impl<S: Strategy + Send + 'static> Trader<S> {
+impl<S: Strategy + Send + Clone + 'static> Trader<S> {
     pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response<S>> {
         let (sender, r) = async_channel::bounded(1000);
         let (s, receiver) = async_channel::bounded(1000);
@@ -79,7 +79,11 @@ impl<S: Strategy + Send + 'static> Trader<S> {
         use entities::*;
         match request {
             Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,
-            Request::AddStrategy(k, s) => { self.strategies.insert(k, s); }
+            Request::AddStrategy(k, s) => { 
+                self.strategies.insert(k, s); 
+                let strategies = self.strategies.clone();
+                self.sender.send(Response::Strategies(strategies)).await?;
+            }
             Request::RemoveStrategy(k) => { self.strategies.remove(&k); }
             Request::Strategies => unimplemented!()
         };
@@ -143,5 +147,4 @@ impl<S: Strategy + Send + 'static> Trader<S> {
         }
         Ok(())
     }
-
 }

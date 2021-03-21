@@ -151,7 +151,7 @@ pub struct Candle {
     pub time: DateTime,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ServiceHandle<Req, Res> {
     sender: Sender<Req>,
     receiver: Receiver<Res>,

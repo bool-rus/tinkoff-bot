@@ -1,9 +1,10 @@
-use std::vec;
+
+use serde::{Serialize, Deserialize};
 
 use crate::model::{Order, OrderKind};
 use super::{ConfigError, Decision, Strategy};
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrailingStop {
     figi: String, 
     stop_treshold: f64,

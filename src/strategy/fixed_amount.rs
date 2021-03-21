@@ -1,8 +1,9 @@
 use super::*;
+use serde::{Serialize, Deserialize};
 use crate::model::StockState;
 use crate::model::OrderKind;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixedAmount {
     figi: String,
     target: f64,

@@ -5,6 +5,7 @@ use async_channel::Receiver;
 use crate::{model::Stock, strategy::{ConfigError, Strategy, StrategyKind}}; 
 use telegram_bot::*;
 use super::fsm::State;
+use super::persistent::SavedState;
 
 type Response = crate::trader::entities::Response<StrategyKind>;
 
@@ -92,6 +93,18 @@ impl Storage {
         let state = State::New;
         Self {context, state}
     }
+    pub fn as_saved_state(&self) -> Option<SavedState<StrategyKind>> {
+        Some(SavedState::new( 
+            self.state.token()?.to_owned(),
+            self.context.strategies.clone()
+        ))
+    }
+    pub fn set_state(&mut self, state: State) {
+        self.state = state;
+    }
+    pub fn state(&self) -> &State {
+        &self.state
+    }
     pub async fn on_event(&mut self, event: Event) -> Option<Receiver<Response>> {
         let mut state = State::New;
         std::mem::swap(&mut self.state, &mut state);
@@ -119,7 +132,7 @@ pub struct Context {
     chat_id: ChatId,
     stocks: HashMap<String, Stock>,
     strategy_types: HashMap<String, StrategyKind>,
-    strategies: HashMap<String, String>,
+    strategies: HashMap<String, StrategyKind>,
 }
 
 impl Context {
@@ -179,11 +192,11 @@ impl Context {
             ResponseMessage::Err(s) => { self.api.send(chat_id.text(s)).await; }
         }
     }
+    pub fn update_strategies(&mut self, strategies: HashMap<String, StrategyKind>) {
+        self.strategies = strategies;
+    }
     pub fn strategy_by_type(&self, type_name: &str) -> Option<StrategyKind> {
         self.strategy_types.get(type_name).map(Clone::clone)
-    }
-    pub fn add_strategy(&mut self, name: String, strategy: String) {
-        self.strategies.insert(name, strategy);
     }
     pub fn set_stocks(&mut self, stocks: HashMap<String, Stock>) {
         self.stocks = stocks;

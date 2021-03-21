@@ -1,7 +1,9 @@
 mod entities;
 mod fsm;
+mod persistent;
 
 use entities::*;
+use log::info;
 use tokio::task::JoinHandle;
 use tokio_compat_02::FutureExt;
 
@@ -14,6 +16,8 @@ use traders::Traders;
 
 use crate::strategy::StrategyKind;
 
+use self::persistent::CacheHandle;
+
 type Response = crate::trader::entities::Response<StrategyKind>;
 
 
@@ -21,6 +25,7 @@ pub struct Bot {
     api: Api,
     storage: HashMap<ChatId, Storage>,
     traders: Traders,
+    cache: CacheHandle,
 }
 
 impl Bot {
@@ -40,7 +45,15 @@ impl Bot {
                 });
                 storage.context.set_stocks(stocks)
             }
-            Response::Strategies(s) => unimplemented!()
+            Response::Strategies(s) => {
+                storage.context.update_strategies(s);
+                if let Some(saved) = storage.as_saved_state() {
+                    self.cache.send(persistent::Request::Update(chat, saved)).await;
+                    log::info!("strategies updated");
+                } else {
+                    log::error!("invalid state: {:?}", storage.state())
+                }
+            },
         }
         Ok(())
     }
@@ -70,6 +83,20 @@ impl Bot {
 
     async fn run(&mut self) -> ! {
         let mut stream = self.api.stream();
+        self.cache.send(persistent::Request::Get).await;
+        if let Ok(persistent::Response::Saved(saved)) = self.cache.recv().await {
+
+            for (chat, saved) in saved {
+                let mut storage = Storage::new(self.api.clone(), chat);
+                let handle = fsm::TraderHandle::create(saved.token());
+                for (key, strategy) in saved.strategies() {
+                    use crate::trader::entities::Request::AddStrategy;
+                    handle.send(AddStrategy(key.clone(), strategy.clone())).await;
+                }
+                storage.set_state(fsm::State::create(handle));
+                self.storage.insert(chat, storage);
+            }
+        };
         loop {
             tokio::select! {
                 (chat, response) = &mut self.traders => {
@@ -96,8 +123,9 @@ impl Bot {
         let api = Api::new(token);
         let storage = HashMap::new();
         let traders = Traders::new();
+        let cache = persistent::start();
         tokio::spawn( async move {
-            Self {api, storage, traders}.run().compat().await
+            Self {api, storage, traders, cache}.run().compat().await
         })
     }
 }
@@ -141,5 +169,4 @@ mod traders {
             Poll::Pending
         }
     }
-
 }
