@@ -93,6 +93,7 @@ impl Bot {
                     use crate::trader::entities::Request::AddStrategy;
                     handle.send(AddStrategy(key.clone(), strategy.clone())).await;
                 }
+                self.traders.insert(chat, handle.receiver());
                 storage.set_state(fsm::State::create(handle));
                 self.storage.insert(chat, storage);
             }

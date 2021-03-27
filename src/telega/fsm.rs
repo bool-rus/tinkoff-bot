@@ -86,6 +86,10 @@ impl State {
                 ctx.send(RM::InProgress).await;
                 S::Connected(handle)
             }
+            (S::Connected(handle), E::Strategies) => {
+                ctx.send(RM::Strategies).await;
+                S::Connected(handle)
+            }
             (S::Connected(handle), E::Strategy) => {
                 ctx.send(RM::SelectStrategy).await;
                 S::ChoosingStrategy(handle)

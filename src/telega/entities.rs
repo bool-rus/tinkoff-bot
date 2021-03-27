@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use async_channel::Receiver;
+use log::info;
 
 use crate::{model::Stock, strategy::{ConfigError, Strategy, StrategyKind}}; 
 use telegram_bot::*;
@@ -12,6 +13,7 @@ type Response = crate::trader::entities::Response<StrategyKind>;
 pub enum Event {
     Start,
     Portfolio,
+    Strategies,
     Strategy,
     Finish,
     Text(String),
@@ -31,6 +33,7 @@ impl From<UpdateKind> for Event {
                         match invoke(&entity, &data).as_ref() {
                             "/start" => return Self::Start,
                             "/portfolio" => return Self::Portfolio,
+                            "/strategies" => return Self::Strategies,
                             "/strategy" => return Self::Strategy,
                             "/finish" => return Self::Finish,
                             _ => {},
@@ -62,24 +65,8 @@ pub enum ResponseMessage {
     SelectStrategyParam(Vec<(&'static str, &'static str)>),
     RequestParamValue,
     StrategyAdded,
+    Strategies,
     Err(String),
-}
-pub enum Command {
-    Start,
-    Portfolio,
-    Strategy, 
-    Unknown,
-}
-
-impl From<&str> for Command {
-    fn from(s: &str) -> Self {
-        match s {
-            "/start" => Self::Start,
-            "/portfolio" => Self::Portfolio,
-            "/strategy" => Self::Strategy,
-            _ => Self::Unknown,
-        }
-    }
 }
 
 pub struct Storage {
@@ -189,6 +176,11 @@ impl Context {
             }
             ResponseMessage::RequestParamValue => { self.api.send(chat_id.text("Ок, пиши значение")).await; }
             ResponseMessage::StrategyAdded => { self.api.send(chat_id.text("Ок, стратегия добавлена")).await; }
+            ResponseMessage::Strategies => {
+                self.api.send(chat_id.text(self.strategies.iter().fold("Стратегии:".to_owned(), |text, (k,_)|{
+                    format!("{}\n{}", text, k)
+                }))).await;
+            }
             ResponseMessage::Err(s) => { self.api.send(chat_id.text(s)).await; }
         }
     }

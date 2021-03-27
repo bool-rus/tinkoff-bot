@@ -35,10 +35,10 @@ impl Strategy for Dummy {
     fn params(&self) -> Vec<(&'static str, &'static str)> {
         Vec::new()
     }
-    fn configure(&mut self, key: &str, value: String) -> Result<(), ConfigError> {
+    fn configure(&mut self, _key: &str, _value: String) -> Result<(), ConfigError> {
         Ok(())
     }
-    fn make_decision(&mut self, market: &Market) -> Vec<Decision> {
+    fn make_decision(&mut self, _market: &Market) -> Vec<Decision> {
         Vec::new()
     }
 

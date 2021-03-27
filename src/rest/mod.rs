@@ -38,8 +38,8 @@ pub fn start_client(
     tokio::spawn(async move {
         while let Ok(req) = receiver.recv().await {
             match send(&conf, req.clone()).await {
-                Ok(res) => sender.send(res).await.unwrap(),
-                Err(e) => sender.send(Response::Err(req, e)).await.unwrap(),
+                Ok(res) => {sender.send(res).await;},
+                Err(e) => {sender.send(Response::Err(req, e)).await;},
             }
         }
     });
