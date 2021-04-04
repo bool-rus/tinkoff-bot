@@ -134,8 +134,14 @@ impl Strategy for FixedAmount {
         match key {
             "figi" => self.figi = value,
             "target" => self.target = value.parse()?,
-            "buy_threshold" => self.buy_threshold = value.parse()?,
-            "sell_threshold" => self.sell_threshold = value.parse()?,
+            "buy_threshold" => {
+                self.buy_threshold = value.parse()?;
+                self.corrected_buy = self.buy_threshold;
+            }
+            "sell_threshold" => {
+                self.sell_threshold = value.parse()?;
+                self.corrected_sell = self.sell_threshold;
+            }
             "factor" => self.factor = value.parse()?,
             _ => return Err(ConfigError::INVALID_PARAM),
         }
