@@ -1,0 +1,1 @@
+{"token":"token","strategies":{"test1":{"FixedAmount":{"figi":"","target":10000.0,"balance":0.0,"buy_threshold":0.01,"sell_threshold":0.01,"corrected_buy":0.01,"corrected_sell":0.01,"factor":1.0,"first_buy":true}}}}
