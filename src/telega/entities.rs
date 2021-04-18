@@ -66,6 +66,7 @@ pub enum ResponseMessage {
     RequestParamValue,
     StrategyAdded,
     Strategies,
+    StrategyInfo(String, StrategyKind),
     Err(String),
 }
 
@@ -148,7 +149,10 @@ impl Context {
         }
         Ok(())
     }
-    pub async fn send(&mut self, msg: ResponseMessage) {
+    pub fn strategy(&self, key: &str) -> Option<&StrategyKind> {
+        self.strategies.get(key)
+    }
+    pub async fn send(&self, msg: ResponseMessage) {
         let chat_id = self.chat_id;
         match msg {
             ResponseMessage::Dummy => { self.api.send(chat_id.text("Сорян, мне нечего ответить...")).await; }
@@ -177,11 +181,16 @@ impl Context {
             ResponseMessage::RequestParamValue => { self.api.send(chat_id.text("Ок, пиши значение")).await; }
             ResponseMessage::StrategyAdded => { self.api.send(chat_id.text("Ок, стратегия добавлена")).await; }
             ResponseMessage::Strategies => {
-                self.api.send(chat_id.text(self.strategies.iter().fold("Стратегии:".to_owned(), |text, (k,_)|{
-                    format!("{}\n{}", text, k)
-                }))).await;
+                let mut msg = chat_id.text("Стратегии".to_owned());
+                let buttons: Vec<_> = self.strategies.keys().map(|k|vec![InlineKeyboardButton::callback(k.clone(), k.clone())]).collect();
+                msg.reply_markup(buttons);
+                self.api.send(msg).await;
             }
             ResponseMessage::Err(s) => { self.api.send(chat_id.text(s)).await; }
+            ResponseMessage::StrategyInfo(key, s) => {
+                let msg = format!("Инфо по стратегии {}\n{}, \n\t{}\nБаланс: {}",key, s.name(), s.description(), s.balance());
+                self.api.send(chat_id.text(msg)).await;
+            }
         }
     }
     pub fn update_strategies(&mut self, strategies: HashMap<String, StrategyKind>) {
