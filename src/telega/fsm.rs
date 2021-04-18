@@ -50,10 +50,11 @@ pub enum State {
     New, 
     WaitingToken,
     Connected(Handle),
-    ChoosingStrategy(Handle),
+    ChoosingStrategyKind(Handle),
     WaitingStrategyName(Handle, Strategy),
     ChoosingStrategyParam(Handle, NamedStrategy),
     WaitingStrategyParam(Handle, StrategyParam),
+    ChoosingStrategy(Handle),
 }
 
 impl State {
@@ -65,10 +66,11 @@ impl State {
             State::New => None,
             State::WaitingToken => None,
             State::Connected(h) => Some(h.token.as_ref()),
-            State::ChoosingStrategy(h) => Some(h.token.as_ref()),
+            State::ChoosingStrategyKind(h) => Some(h.token.as_ref()),
             State::WaitingStrategyName(h, ..) => Some(h.token.as_ref()),
             State::ChoosingStrategyParam(h, ..) => Some(h.token.as_ref()),
             State::WaitingStrategyParam(h, ..) => Some(h.token.as_ref()),
+            State::ChoosingStrategy(h) => Some(h.token.as_ref()),
         }
     }
     pub async fn on_event(self, ctx: &mut Context, event: Event) -> Result<State, ChannelStopped> {
@@ -88,19 +90,19 @@ impl State {
             }
             (S::Connected(handle), E::Strategies) => {
                 ctx.send(RM::Strategies).await;
-                S::Connected(handle)
+                S::ChoosingStrategy(handle)
             }
             (S::Connected(handle), E::Strategy) => {
                 ctx.send(RM::SelectStrategy).await;
-                S::ChoosingStrategy(handle)
+                S::ChoosingStrategyKind(handle)
             }
-            (S::ChoosingStrategy(handle), E::Select(strategy_type)) => {
+            (S::ChoosingStrategyKind(handle), E::Select(strategy_type)) => {
                 if let Some(strategy) = ctx.strategy_by_type(&strategy_type) {
                     ctx.send(RM::RequestStrategyName).await;
                     S::WaitingStrategyName(handle, strategy)
                 } else  {
                     ctx.send(RM::Dummy).await;
-                    S::ChoosingStrategy(handle)
+                    S::ChoosingStrategyKind(handle)
                 }
             }
             (S::WaitingStrategyName(handle, strategy), E::Text(name)) => 
@@ -119,6 +121,15 @@ impl State {
                 match ctx.set_parameter(&mut strategy.strategy, &name, value).await {
                     Ok(()) => to_choosing_strategy_param(ctx, handle, strategy).await,
                     Err(e) => with_err(ctx, S::WaitingStrategyParam(handle, StrategyParam {strategy, name}), e).await
+                }
+            }
+            (S::ChoosingStrategy(handle), E::Select(key)) =>  {
+                if let Some(strategy) = ctx.strategy(key.as_ref()) {
+                    ctx.send(RM::StrategyInfo(key, strategy.clone())).await;
+                    S::Connected(handle)
+                } else {
+                    ctx.send(RM::Dummy).await;
+                    S::ChoosingStrategy(handle)
                 }
             }
             (state, _) => {
