@@ -3,7 +3,7 @@ pub mod entities;
 use std::{collections::HashSet, str::FromStr};
 use futures_util::{SinkExt, StreamExt};
 
-use tokio::{net::TcpStream, time::Instant};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
 use tungstenite::{Message, http};
 use async_channel::{Sender, Receiver};

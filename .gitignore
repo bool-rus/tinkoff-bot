@@ -1,4 +1,4 @@
 /target
-Cargo.lock
-crossbuild.sh
+.DS_Store
 .vscode
+.trader-cache

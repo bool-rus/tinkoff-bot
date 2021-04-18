@@ -1,8 +1,9 @@
 use super::*;
+use serde::{Serialize, Deserialize};
 use crate::model::StockState;
 use crate::model::OrderKind;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixedAmount {
     figi: String,
     target: f64,
@@ -36,7 +37,7 @@ impl FixedAmount {
         }
     }
 
-    fn _make_decision(&mut self, figi: String, bid_price: f64, ask_price: f64, balance: f64) -> Decision {
+    fn _make_decision(&mut self, figi: String, bid_price: f64, ask_price: f64, balance: f64) -> Vec<Decision> {
         let target = self.target;
         let factor = self.factor;
 
@@ -44,7 +45,7 @@ impl FixedAmount {
         if over/target > self.corrected_sell { //TODO: использовать threshold
             let quantity = (over/bid_price)as u32;
             if quantity == 0 {
-                return Decision::Relax;
+                return Vec::new();
             }
             log::info!("over: {:.2}, sell", over);
             self.balance += (quantity as f64) * bid_price;
@@ -53,18 +54,18 @@ impl FixedAmount {
                 self.corrected_buy = self.buy_threshold;
             }
             self.corrected_sell *= factor;
-            return Decision::Order(vec![Order {
+            return vec![Decision::Order(Order {
                 kind: OrderKind::Sell,
                 figi, 
                 price: bid_price, 
                 quantity,
-            }]);
+            })];
         }
         let under = target - balance * ask_price;
         if under/target > self.corrected_buy {
             let quantity = (under/bid_price) as u32;
             if quantity == 0 {
-                return Decision::Relax;
+                return Vec::new();
             }
             log::info!("under: {:.2}, buy", under);
             self.balance -= (quantity as f64) * ask_price;
@@ -77,14 +78,14 @@ impl FixedAmount {
                 self.balance = 0.0;
                 self.first_buy = false;
             }
-            return Decision::Order(vec![Order {
+            return vec![Decision::Order(Order {
                 kind: OrderKind::Buy,
                 figi, 
                 price: ask_price, 
                 quantity,
-            }]);
+            })];
         }
-        Decision::Relax
+        Vec::new()
     }
 }
 
@@ -93,10 +94,10 @@ fn have_orders(stock: &StockState)  -> bool {
 }
 
 impl Strategy for FixedAmount {
-    fn make_decision(&mut self, market: &Market) -> Decision {
+    fn make_decision(&mut self, market: &Market) -> Vec<Decision> {
         if let Some(stock) = market.state(&self.figi) {
             if have_orders(stock) {
-                return Decision::Relax;
+                return Vec::new();
             }
             let vol =  stock.position.balance;
             let orderbook = &stock.orderbook;
@@ -104,7 +105,7 @@ impl Strategy for FixedAmount {
                 return self._make_decision(self.figi.clone(), bid.0, ask.0, vol)
             }
         }
-        Decision::Relax
+        Vec::new()
     }
     fn balance(&self) -> f64 {
         self.balance/self.target * 100.0
@@ -133,8 +134,14 @@ impl Strategy for FixedAmount {
         match key {
             "figi" => self.figi = value,
             "target" => self.target = value.parse()?,
-            "buy_threshold" => self.buy_threshold = value.parse()?,
-            "sell_threshold" => self.sell_threshold = value.parse()?,
+            "buy_threshold" => {
+                self.buy_threshold = value.parse()?;
+                self.corrected_buy = self.buy_threshold;
+            }
+            "sell_threshold" => {
+                self.sell_threshold = value.parse()?;
+                self.corrected_sell = self.sell_threshold;
+            }
             "factor" => self.factor = value.parse()?,
             _ => return Err(ConfigError::INVALID_PARAM),
         }

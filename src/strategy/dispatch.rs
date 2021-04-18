@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use serde::{Serialize, Deserialize};
 use enum_dispatch::enum_dispatch;
 use super::fixed_amount::FixedAmount;
 use super::trailing_stop::TrailingStop;
@@ -9,7 +9,7 @@ use strum::EnumIter;
 
 
 #[enum_dispatch(Strategy)]
-#[derive(EnumIter, Clone, PartialEq)]
+#[derive(Debug, EnumIter, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StrategyKind {
     FixedAmount,
     TrailingStop,

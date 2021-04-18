@@ -15,7 +15,7 @@ pub struct TraderConf {
 }
 
 pub struct Trader<S> {
-    sender: Sender<Response>,
+    sender: Sender<Response<S>>,
     receiver: Receiver<Request<S>>,
     streaming: ServiceHandle<StreamingRequest, StreamingResponse>,
     rest: ServiceHandle<RestRequest, RestResponse>,
@@ -23,8 +23,8 @@ pub struct Trader<S> {
     strategies: HashMap<Key, S>,
 }
 
-impl<S: Strategy + Send + 'static> Trader<S> {
-    pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response> {
+impl<S: Strategy + Send + Clone + 'static> Trader<S> {
+    pub fn start(conf: TraderConf) -> ServiceHandle<Request<S>, Response<S>> {
         let (sender, r) = async_channel::bounded(1000);
         let (s, receiver) = async_channel::bounded(1000);
         let TraderConf{rest_uri, streaming_uri, token} = conf;
@@ -68,7 +68,7 @@ impl<S: Strategy + Send + 'static> Trader<S> {
                 }
             }
             let market = &self.market;
-            let decisions: Vec<_> = self.strategies.values_mut().map(|s|s.make_decision(market)).collect();
+            let decisions: Vec<_> = self.strategies.values_mut().map(|s|s.make_decision(market).into_iter()).flatten().collect();
             for decision in decisions {
                 self.process_decision(decision).await?;
             }
@@ -79,8 +79,13 @@ impl<S: Strategy + Send + 'static> Trader<S> {
         use entities::*;
         match request {
             Request::Portfolio => self.sender.send(Response::Portfolio(self.market.portfolio())).await?,
-            Request::AddStrategy(k, s) => { self.strategies.insert(k, s); }
+            Request::AddStrategy(k, s) => { 
+                self.strategies.insert(k, s); 
+                let strategies = self.strategies.clone();
+                self.sender.send(Response::Strategies(strategies)).await?;
+            }
             Request::RemoveStrategy(k) => { self.strategies.remove(&k); }
+            Request::Strategies => unimplemented!()
         };
         Ok(())
     }
@@ -88,14 +93,11 @@ impl<S: Strategy + Send + 'static> Trader<S> {
 
     async fn process_decision(&mut self, decision: Decision) -> Result<(), ChannelStopped> {
         match decision {
-            Decision::Relax => {}
-            Decision::Order(orders) => {
-                for order in orders {
-                    let stock = self.market.state_mut(&order.figi);
-                    let key = SystemTime::now();
-                    stock.new_orders.insert(key, order.clone());
-                    self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
-                }
+            Decision::Order(order) => {
+                let stock = self.market.state_mut(&order.figi);
+                let key = SystemTime::now();
+                stock.new_orders.insert(key, order.clone());
+                self.rest.send(crate::rest::entities::Request::LimitOrder(key, order)).await?;
             }
         }
         Ok(())
@@ -145,5 +147,4 @@ impl<S: Strategy + Send + 'static> Trader<S> {
         }
         Ok(())
     }
-
 }

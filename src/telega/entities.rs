@@ -1,16 +1,19 @@
 use std::collections::HashMap;
 
 use async_channel::Receiver;
+use log::info;
 
 use crate::{model::Stock, strategy::{ConfigError, Strategy, StrategyKind}}; 
-use crate::trader::entities::Response;
 use telegram_bot::*;
-
 use super::fsm::State;
+use super::persistent::SavedState;
+
+type Response = crate::trader::entities::Response<StrategyKind>;
 
 pub enum Event {
     Start,
     Portfolio,
+    Strategies,
     Strategy,
     Finish,
     Text(String),
@@ -30,6 +33,7 @@ impl From<UpdateKind> for Event {
                         match invoke(&entity, &data).as_ref() {
                             "/start" => return Self::Start,
                             "/portfolio" => return Self::Portfolio,
+                            "/strategies" => return Self::Strategies,
                             "/strategy" => return Self::Strategy,
                             "/finish" => return Self::Finish,
                             _ => {},
@@ -61,24 +65,8 @@ pub enum ResponseMessage {
     SelectStrategyParam(Vec<(&'static str, &'static str)>),
     RequestParamValue,
     StrategyAdded,
+    Strategies,
     Err(String),
-}
-pub enum Command {
-    Start,
-    Portfolio,
-    Strategy, 
-    Unknown,
-}
-
-impl From<&str> for Command {
-    fn from(s: &str) -> Self {
-        match s {
-            "/start" => Self::Start,
-            "/portfolio" => Self::Portfolio,
-            "/strategy" => Self::Strategy,
-            _ => Self::Unknown,
-        }
-    }
 }
 
 pub struct Storage {
@@ -91,6 +79,18 @@ impl Storage {
         let context = Context::new(api, chat_id);
         let state = State::New;
         Self {context, state}
+    }
+    pub fn as_saved_state(&self) -> Option<SavedState<StrategyKind>> {
+        Some(SavedState::new( 
+            self.state.token()?.to_owned(),
+            self.context.strategies.clone()
+        ))
+    }
+    pub fn set_state(&mut self, state: State) {
+        self.state = state;
+    }
+    pub fn state(&self) -> &State {
+        &self.state
     }
     pub async fn on_event(&mut self, event: Event) -> Option<Receiver<Response>> {
         let mut state = State::New;
@@ -119,7 +119,7 @@ pub struct Context {
     chat_id: ChatId,
     stocks: HashMap<String, Stock>,
     strategy_types: HashMap<String, StrategyKind>,
-    strategies: HashMap<String, String>,
+    strategies: HashMap<String, StrategyKind>,
 }
 
 impl Context {
@@ -176,14 +176,19 @@ impl Context {
             }
             ResponseMessage::RequestParamValue => { self.api.send(chat_id.text("Ок, пиши значение")).await; }
             ResponseMessage::StrategyAdded => { self.api.send(chat_id.text("Ок, стратегия добавлена")).await; }
+            ResponseMessage::Strategies => {
+                self.api.send(chat_id.text(self.strategies.iter().fold("Стратегии:".to_owned(), |text, (k,_)|{
+                    format!("{}\n{}", text, k)
+                }))).await;
+            }
             ResponseMessage::Err(s) => { self.api.send(chat_id.text(s)).await; }
         }
     }
+    pub fn update_strategies(&mut self, strategies: HashMap<String, StrategyKind>) {
+        self.strategies = strategies;
+    }
     pub fn strategy_by_type(&self, type_name: &str) -> Option<StrategyKind> {
         self.strategy_types.get(type_name).map(Clone::clone)
-    }
-    pub fn add_strategy(&mut self, name: String, strategy: String) {
-        self.strategies.insert(name, strategy);
     }
     pub fn set_stocks(&mut self, stocks: HashMap<String, Stock>) {
         self.stocks = stocks;

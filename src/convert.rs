@@ -1,5 +1,5 @@
 use async_channel::{RecvError, SendError};
-use tinkoff_api::models::{CandleResolution, MarketInstrument};
+use tinkoff_api::models::CandleResolution;
 use tokio_tungstenite::tungstenite::Message;
 use crate::model::*;
 
